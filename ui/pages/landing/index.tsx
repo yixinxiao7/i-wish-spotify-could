@@ -1,8 +1,11 @@
 import React from 'react';
+import { Button } from "@/components/ui/button"
+
 
 const Home: React.FC = () => {
     return (
-        <div>yeet!</div>
+        
+        <Button>yeet!</Button>
     );
 };
 
