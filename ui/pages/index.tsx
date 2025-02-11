@@ -1,25 +1,16 @@
 import React from 'react';
+import { SCOPES, AUTHORIZE_ENDPOINT, REDIRECT_URL } from '@/utils/config';
 
-const CLIENT_ID = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID
-const REDIRECT_URI = String(process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI)
-const AUTHORIZE_ENDPOINT = "https://accounts.spotify.com/authorize"
-const SCOPES = [
-    'playlist-read-private',
-    'playlist-modify-public',
-    'playlist-modify-private',
-    'user-read-currently-playing',
-    'user-read-private',
-    'user-read-email',
-    'user-library-read'
-]
-const SCOPES_URI_PARAMS = SCOPES.join("%20")
+const client_id = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID
+const redirect_url = String(REDIRECT_URL)
+const scopes_url_params = SCOPES.join("%20")
 
 const Login: React.FC = () => {
     const handleLogin = () => {
-        const authUrl = `${AUTHORIZE_ENDPOINT}?client_id=${CLIENT_ID}` +
+        const authUrl = `${AUTHORIZE_ENDPOINT}?client_id=${client_id}` +
                         `&response_type=code` +
-                        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-                        `&scope=${SCOPES_URI_PARAMS}`;
+                        `&redirect_uri=${encodeURIComponent(redirect_url)}` +
+                        `&scope=${scopes_url_params}`;
         window.location.href = authUrl;
     }
 
