@@ -1,5 +1,8 @@
+'use client';
+
 import React from 'react';
 import { SCOPES, AUTHORIZE_ENDPOINT, REDIRECT_URL } from '@/utils/config';
+import { Button } from '@/components/ui/button'
 
 const client_id = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID
 const redirect_url = String(REDIRECT_URL)
@@ -14,11 +17,7 @@ const Login: React.FC = () => {
         window.location.href = authUrl;
     }
 
-    return(
-        <div>
-            <button onClick={handleLogin}> Log in</button>
-        </div>
-    )
+    return <Button onClick={handleLogin}>Log in</Button>
 
 }
 
