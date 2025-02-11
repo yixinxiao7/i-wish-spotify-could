@@ -11,4 +11,7 @@ export const SCOPES = [
 export const AUTHORIZE_ENDPOINT = "https://accounts.spotify.com/authorize";
 
 // Redirect url for spotify's oauth
-export const REDIRECT_URL = `${process.env.NEXT_PUBLIC_HOST}/callback`;
+export const REDIRECT_URL = `${process.env.NEXT_PUBLIC_WEB_HOST}/callback`;
+
+// Backend APIs
+export const GET_SONGS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/songs`;

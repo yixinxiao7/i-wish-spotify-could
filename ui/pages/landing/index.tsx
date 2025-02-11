@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import Row from "@/components/ui/Row"
 // import 'tailwindcss/tailwind.css'
 
-const Home: React.FC = () => {
+const Landing: React.FC = () => {
     return (
         <>
             <Row className="justify-center bg-red-500">
@@ -16,4 +16,4 @@ const Home: React.FC = () => {
     );
 };
 
-export default Home;
+export default Landing;
