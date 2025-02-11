@@ -3,14 +3,22 @@ import Link from "next/link";
 import { ThemeProvider } from "./theme-provider";
 import { useEffect, useState } from "react";
 import Login from '../pages/index'
+import { useRouter } from "next/router";
+
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [spotifyCode, setSpotifyCode] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     // Only runs on the client side
     const spotifyCode = localStorage.getItem("spotify_auth_code");
-    setSpotifyCode(spotifyCode);
+    if (spotifyCode) {
+      setSpotifyCode(spotifyCode);
+    } else {
+      // Redirect to login page if no code is found
+      router.push("/");
+    }
   }, []);
 
   const renderHeaderAndBody = () => {
@@ -38,7 +46,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </>
       )
     } else {
-      return <Login />
+      return <p>Redirecting...</p>;
     }
   }
 

@@ -1,11 +1,18 @@
 import React from 'react';
 import { Button } from "@/components/ui/button"
-
+import Row from "@/components/ui/Row"
+// import 'tailwindcss/tailwind.css'
 
 const Home: React.FC = () => {
     return (
-        
-        <Button>yeet!</Button>
+        <>
+            <Row className="justify-center bg-red-500">
+                <Button>yeet!</Button>
+            </Row>
+            <Row>
+                <Button>yeety!</Button>
+            </Row>
+        </>
     );
 };
 
