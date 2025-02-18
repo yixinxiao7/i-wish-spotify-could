@@ -1,26 +1,31 @@
-'use client';
+import { POST_TOKEN_ENDPOINT } from '@/utils/config';
+import { redirect } from 'next/navigation';
+import { headers, cookies } from 'next/headers';
+import ClientComponent from './ClientComponent';
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+const getTokenExpiration = async (code: string) => {
 
-const Callback = () => {
-    const router = useRouter();
-    console.log("Callback page loaded");
-    useEffect(() => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get("code");
-      console.log(code)
-      if (code) {
-        // Store the code (or exchange it for a token)
-        localStorage.setItem("spotify_auth_code", code);
-  
-        // Redirect to landing
-        router.push("/");
-      } else {
-        // If there's no code, redirect to login page
-        router.push("/login");
-      }
-    }, []);
-};
+  const response = await fetch(POST_TOKEN_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ code }),
+  });
+  const data = await response.json();
+  if (response.status != 200) return;
+  return data.expires_in
+}
 
-export default Callback;
+const CallbackPage = async ({searchParams}) => {
+  const code = (await searchParams).code;
+  const expires_in = await getTokenExpiration(code)
+  return (
+    <div>
+      <ClientComponent token_expires_in={expires_in}/>
+    </div>
+  )
+
+}
+
+export default CallbackPage;
