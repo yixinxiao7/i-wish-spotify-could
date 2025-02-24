@@ -13,6 +13,7 @@ const CallBackClient = (expires_in) => {
         const expiresAt = currentTimestamp + expires_in
         sessionStorage.setItem('token_expiry', expiresAt);
         setIsAuthenticated(true);
+        router.push("/")
       } else {
         router.push("/login")
       }
@@ -21,8 +22,6 @@ const CallBackClient = (expires_in) => {
     if (!isAuthenticated) {
       return <p>Loading...</p>;
     }
-    
-    router.push("/")
   }
 
 export default CallBackClient

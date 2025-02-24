@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState }  from "react";
-import Head from 'next/head';
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
@@ -27,15 +26,18 @@ export default function RootLayout({
 }>) {
   const router = useRouter();
   const pathname = usePathname()
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     if (!sessionStorage.getItem("token_expiry")
       && pathname !== "/login" && pathname !== "/callback") {
       router.push("/login");
+    } else {
+      setIsAuthenticated(true);
     }
   }, []);
 
-  if (!sessionStorage.getItem("token_expiry") 
+  if (!isAuthenticated 
     && pathname !== "/login" && pathname !== "/callback") {
     return(
       <html lang="en">
