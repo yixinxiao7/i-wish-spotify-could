@@ -1,12 +1,16 @@
+"use client";
+
 import React from 'react';
 import { Button } from "@/components/ui/button"
+import { useRouter } from 'next/navigation'
 
 const Landing: React.FC = () => {
+    const router = useRouter();
     return (
-        <>
-            <Button>yeet!</Button>
+        <div>
+            <Button onClick={() => router.push('/organize')}>yeet!</Button>
             <Button>yeety!</Button>
-        </>
+        </div>
     );
 };
 

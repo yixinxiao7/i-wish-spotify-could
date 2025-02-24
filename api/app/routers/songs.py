@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, Header
 from services.songs_service import get_all_liked_songs
-
+import json
 
 router = APIRouter()
 
@@ -8,8 +8,7 @@ router = APIRouter()
 def get_songs():
     # get token from token.json
     with open("token.json", "r") as f:
-        token = f.read()
+        token = json.loads(f.read())['access_token']
     all_songs = get_all_liked_songs(token)
-    # all_songs = [{ "name": "ana", "artist": "ana", "album": "ana", "url": "ana" }]
     return {"songs": all_songs}
 

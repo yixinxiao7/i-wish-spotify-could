@@ -7,9 +7,7 @@ def get_all_liked_songs(access_token):
     while offset < total:
         url = f"https://api.spotify.com/v1/me/tracks?limit=50&offset={offset}"
         headers = {"Authorization": f"Bearer {access_token}"}
-        print(headers)
         response = requests.get(url, headers=headers)
-        print(response)
         if response.status_code != 200:
             raise Exception(f"Error: {response.status_code} - {response.json()}")
 
