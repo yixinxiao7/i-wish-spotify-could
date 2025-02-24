@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { GET_SONGS_ENDPOINT } from '@/utils/config';
+import { GET_TOTAL_SONGS_ENDPOINT, GET_SONGS_ENDPOINT } from '@/utils/config';
 import { Song } from '@/types/spotify';
 import {
   Pagination,
@@ -22,15 +22,39 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+
 const SongsPage: React.FC = () => {
     const [songs, setSongs] = useState<Song[]>([]);
+    const [total, setTotal] = useState<number>(0);
+    const [currentPage, setCurrentPage] = useState<number>(1);
     const [loading, setLoading] = useState<boolean>(true);
     const [offset, setOffset] = useState<number>(0);
     const [limit, setLimit] = useState<number>(10);
 
     useEffect(() => {
+        fetchTotalSongs();
         fetchSongs(offset, limit);
     }, []);
+
+    const fetchTotalSongs = async () => {
+      try {
+        const response = await fetch(GET_TOTAL_SONGS_ENDPOINT, {
+          method: "GET",
+          mode: 'cors',
+          headers: {
+            "Content-Type": "application/json"
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setTotal(data.total);
+        } else {
+          throw new Error("Failed to fetch total songs");
+        }
+      } catch (error) {
+        console.error("Error fetching total songs:", error);
+      }
+    }
 
     const fetchSongs = async (offset: number, limit: number) => {
       try {
@@ -54,8 +78,8 @@ const SongsPage: React.FC = () => {
       } catch (error) {
         console.error("Error fetching songs:", error);
       } finally {
-        setOffset(offset)
-        setLimit(limit)
+        setOffset(offset);
+        setLimit(limit);
         setLoading(false);
       }
     };
@@ -70,17 +94,33 @@ const SongsPage: React.FC = () => {
       }
     }
 
-    const handleOffsetChange = (offset: number) => {
-      if (offset < 0) {
-        offset = 0;
+    const getLastPage = () => {
+      return Math.ceil(total / limit);
+    }
+
+    const handleOffsetChange = (newOffset: number, newPage: number) => {
+      if (newOffset < 0) {
+        newOffset = 0;
+      } 
+      else if (newOffset > total) {
+        newOffset -= limit;
+      }
+
+      const lastPage = getLastPage();
+      if (newPage < 1) {
+        newPage = 1;
+      }
+      else if (newPage > lastPage) {
+        newPage = lastPage;
       }
       setLoading(true);
-      fetchSongs(offset, limit);
+      setCurrentPage(newPage);
+      fetchSongs(newOffset, limit);
     }
     
-    const handleLimitChange = (limit: number) => {
+    const handleLimitChange = (newLimit: number) => {
       setLoading(true);
-      fetchSongs(offset, limit);
+      fetchSongs(offset, newLimit);
     }
 
     // rendering below
@@ -109,20 +149,21 @@ const SongsPage: React.FC = () => {
               <PaginationContent>
                 <PaginationItem>
                   <PaginationPrevious onClick={() => {
-                    handleOffsetChange(offset - limit);
+                    handleOffsetChange(offset-limit, currentPage-1);
                   }} />
                 </PaginationItem>
                 <PaginationItem>
-                  <PaginationLink onClick={(event) => {
-                    handleOffsetChange(event?.target.textValue);
-                  }}>1</PaginationLink>
+                  <PaginationLink>{currentPage}</PaginationLink>
                 </PaginationItem>
                 <PaginationItem>
                   <PaginationEllipsis />
                 </PaginationItem>
+                <PaginationLink onClick={() => {
+                    handleOffsetChange((getLastPage()-1)*limit, getLastPage());
+                  }}>{getLastPage()}</PaginationLink>
                 <PaginationItem>
                   <PaginationNext onClick={() => {
-                    handleOffsetChange(offset + limit);
+                    handleOffsetChange(offset+limit, currentPage+1);
                   }} />
                 </PaginationItem>
               </PaginationContent>

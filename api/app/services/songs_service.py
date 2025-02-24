@@ -34,3 +34,5 @@ def get_liked_songs(access_token: str, offset:int, limit:int):
 
     return songs
     
+
+__all__ = ['get_total_liked_songs', 'get_liked_songs']
