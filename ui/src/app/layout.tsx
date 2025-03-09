@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState }  from "react";
-import Head from 'next/head';
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
@@ -25,21 +24,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [spotifyCode, setSpotifyCode] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname()
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const spotifyCode = localStorage.getItem("spotify_auth_code");
-    if (spotifyCode) {
-      setSpotifyCode(spotifyCode);
-    } else if (pathname !== "/login" && pathname !== "/callback") {
-      // Redirect to login page if no code is found
+    if (!sessionStorage.getItem("token_expiry")
+      && pathname !== "/login" && pathname !== "/callback") {
       router.push("/login");
+    } else {
+      setIsAuthenticated(true);
     }
   }, []);
 
-  if (spotifyCode === null && pathname !== "/login" && pathname !== "/callback") {
+  if (!isAuthenticated 
+    && pathname !== "/login" && pathname !== "/callback") {
     return(
       <html lang="en">
         <body className="layout">
