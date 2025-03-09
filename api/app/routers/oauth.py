@@ -19,6 +19,14 @@ router = APIRouter()
 def set_token(code: Code):
     """
     Exchange authorization code for a Spotify access token.
+    Args:
+        code (Code): Authorization code
+    Returns:
+        JSONResponse: Success message
+        {
+            "message": str,
+            "expires_in": int
+        }
     """
     if not code:
         raise HTTPException(status_code=400, detail="Missing authorization code")

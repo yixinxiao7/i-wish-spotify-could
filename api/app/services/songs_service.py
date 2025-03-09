@@ -6,6 +6,13 @@ from services.playlists_service import *
 
 
 def get_total_liked_songs(access_token: str):
+    '''
+    Get total number of liked songs
+    Args:
+        access_token (str): Spotify access token
+    Returns:
+        int: Total number of liked songs
+    '''
     url = "https://api.spotify.com/v1/me/tracks?limit=1"
     headers = {"Authorization": f"Bearer {access_token}"}
     response = requests.get(url, headers=headers)
@@ -16,6 +23,21 @@ def get_total_liked_songs(access_token: str):
 
 
 def get_liked_songs(access_token: str):
+    '''
+    Get all liked songs
+    Args:
+        access_token (str): Spotify access token
+    Returns:
+        list: List of liked songs
+        [
+            {
+                "id": str,
+                "name": str,
+                "artist": str,
+                "album": str
+            }
+        ]
+    '''
     all_songs = []
     offset = 0
     total = 1
@@ -45,6 +67,23 @@ def get_liked_songs(access_token: str):
 
 
 def get_uncategorized_songs(access_token: str, offset:int, limit:int):
+    '''
+    Get uncategorized songs
+    Args:
+        access_token (str): Spotify access token
+        offset (int): Offset
+        limit (int): Limit
+    Returns:
+        list: List of uncategorized songs
+        [
+            {
+                "id": str,
+                "name": str,
+                "artist": str,
+                "album": str
+            }
+        ]
+    '''
     # TODO: implement cache to save all songs
     all_uncategorized_songs_path = 'all_uncategorized_songs.json'
     if os.path.exists(all_uncategorized_songs_path):
@@ -65,6 +104,11 @@ def get_uncategorized_songs(access_token: str, offset:int, limit:int):
     return all_uncategorized_songs[offset:offset+limit]
 
 def get_total_uncategorized_songs():
+    '''
+    Get total number of uncategorized songs
+    Returns:
+        int: Total number of uncategorized songs
+    '''
     all_uncategorized_songs_path = 'all_uncategorized_songs.json'
     while not os.path.exists(all_uncategorized_songs_path):  # wait for the file to be created
         time.sleep(1)

@@ -2,6 +2,13 @@ import requests
 
 
 def get_current_user_id(access_token: str):
+    '''
+    Get current user ID
+    Args:
+        access_token (str): Spotify access token
+    Returns:
+        str: Spotify user ID
+    '''
     url = "https://api.spotify.com/v1/me"
     headers = {"Authorization": f"Bearer {access_token}"}
     response = requests.get(url, headers=headers)
