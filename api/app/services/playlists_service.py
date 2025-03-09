@@ -18,18 +18,29 @@ def get_created_playlists(access_token: str):
     '''
     url = "https://api.spotify.com/v1/me/playlists"
     headers = {"Authorization": f"Bearer {access_token}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    data = response.json()
-    all_playlists = [
-        {
-            "id": playlist["id"],
-            "name": playlist["name"],
-            "owner_id": playlist["owner"]["id"]
-        } 
-        for playlist in data["items"]
-    ]
+    all_playlists = []
+    offset = 0
+    limit = 50
+
+    while True:
+        response = requests.get(url, headers=headers, params={"offset": offset, "limit": limit})
+        if response.status_code != 200:
+            raise Exception(f"Error: {response.status_code} - {response.json()}")
+        data = response.json()
+        all_playlists.extend(
+            [
+                {
+                    "id": playlist["id"],
+                    "name": playlist["name"],
+                    "owner_id": playlist["owner"]["id"]
+                } 
+                for playlist in data["items"]
+            ]
+        )
+        if len(data["items"]) < limit:
+            break
+        offset += limit
+
     # TODO: add to cache
     # get user id from user_id.json file if it exists
     user_id_path = 'user_id.json'
@@ -68,11 +79,21 @@ def get_playlist_songs(access_token: str, playlist_id: str):
     '''
     url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
     headers = {"Authorization": f"Bearer {access_token}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
-    data = response.json()
-    return data["items"]
+    all_songs = []
+    offset = 0
+    limit = 100
+
+    while True:
+        response = requests.get(url, headers=headers, params={"offset": offset, "limit": limit})
+        if response.status_code != 200:
+            raise Exception(f"Error: {response.status_code} - {response.json()}")
+        data = response.json()
+        all_songs.extend(data["items"])
+        if len(data["items"]) < limit:
+            break
+        offset += limit
+
+    return all_songs
 
 
 __all__ = ["get_created_playlists", "get_playlist_songs"]

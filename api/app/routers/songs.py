@@ -23,4 +23,3 @@ def get_songs(pagination: Pagination):
         token = json.loads(f.read())['access_token']
     songs = get_uncategorized_songs(token, offset, limit)
     return {"songs": songs}
-
