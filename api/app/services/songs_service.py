@@ -55,7 +55,7 @@ def get_liked_songs(access_token: str):
                 {
                     "id": item["track"]["id"],
                     "name": item["track"]["name"],
-                    "artist": ", ".join(artist["name"] for artist in item["track"]["artists"]),
+                    "artists": ", ".join(artist["name"] for artist in item["track"]["artists"]),
                     "album": item["track"]["album"]["name"]
                 }
                 for item in data["items"]
@@ -79,7 +79,7 @@ def get_uncategorized_songs(access_token: str, offset:int, limit:int):
             {
                 "id": str,
                 "name": str,
-                "artist": str,
+                "artists": str,
                 "album": str
             }
         ]

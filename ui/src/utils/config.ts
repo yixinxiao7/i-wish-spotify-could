@@ -17,3 +17,4 @@ export const REDIRECT_URL = `${process.env.NEXT_PUBLIC_WEB_HOST}/callback`;
 export const POST_TOKEN_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/oauth`;
 export const GET_TOTAL_SONGS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/songs/total`; 
 export const GET_SONGS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/songs`;
+export const GET_PLAYLISTS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists`;

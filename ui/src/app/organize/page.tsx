@@ -1,8 +1,11 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { GET_TOTAL_SONGS_ENDPOINT, GET_SONGS_ENDPOINT } from '@/utils/config';
-import { Song } from '@/types/spotify';
+import { 
+  GET_TOTAL_SONGS_ENDPOINT, 
+  GET_SONGS_ENDPOINT,
+  GET_PLAYLISTS_ENDPOINT } from '@/utils/config';
+import { Song, Playlist } from '@/types/spotify';
 import {
   Pagination,
   PaginationContent,
@@ -21,6 +24,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
 
 
 const SongsPage: React.FC = () => {
@@ -30,10 +44,12 @@ const SongsPage: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [offset, setOffset] = useState<number>(0);
     const [limit, setLimit] = useState<number>(10);
+    const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
     useEffect(() => {
         fetchTotalSongs();
         fetchSongs(offset, limit);
+        fetchPlaylists();
     }, []);
 
     const fetchTotalSongs = async () => {
@@ -58,17 +74,16 @@ const SongsPage: React.FC = () => {
 
     const fetchSongs = async (offset: number, limit: number) => {
       try {
-        const response = await fetch(GET_SONGS_ENDPOINT, {
-          method: "POST",
-          mode: 'cors',
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            offset: offset,
-            limit: limit,
-          }),
-        });
+        const response = await fetch(
+          `${GET_SONGS_ENDPOINT}?offset=${offset}&limit=${limit}`, 
+          {
+            method: "GET",
+            mode: 'cors',
+            headers: {
+              "Content-Type": "application/json"
+            }
+          }
+        );
         if (response.ok) {
           const data = await response.json();
           setSongs(data.songs);
@@ -84,12 +99,62 @@ const SongsPage: React.FC = () => {
       }
     };
 
+    const fetchPlaylists = async () => {
+      try {
+        const response = await fetch(GET_PLAYLISTS_ENDPOINT, {
+          method: "GET",
+          mode: 'cors',
+          headers: {
+            "Content-Type": "application/json"
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setPlaylists(data.playlists);
+        } else {
+          throw new Error("Failed to fetch playlists");
+        }
+      }
+      catch (error) {
+        console.error("Error fetching playlists:", error);
+      }
+    }
+
     const renderSongs = () => {
       if (songs.length !== 0) {
         return songs.map((song) => (
-            <div key={song.id}>
-                <h2>{song.name}</h2>
-            </div>
+            <Drawer key={song.id}>
+                <DrawerTrigger asChild>
+                  <Button variant="outline">
+                    {song.name}
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent>
+                  <div className="mx-auto w-full max-w-sm">
+                    <DrawerHeader>
+                      <DrawerTitle>All playlists</DrawerTitle>
+                      <DrawerDescription>Choose which playlists to add the song to.</DrawerDescription>
+                    </DrawerHeader>
+                    <div className="p-4 pb-0">
+                      {playlists.map((playlist) => { 
+                        return(
+                          <div key={playlist.id} className="flex items-center justify-between p-2">
+                            <span>{playlist.name}</span>
+                            <input type="checkbox" />
+                          </div>
+                        );
+                        })
+                      } 
+                    </div>
+                    <DrawerFooter>
+                      <Button>Add</Button>
+                      <DrawerClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DrawerClose>
+                    </DrawerFooter>
+                  </div>
+                </DrawerContent>
+            </Drawer>
         ));
       }
     }

@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Request, Header
+from fastapi import APIRouter, Query
 from services.songs_service import *
-from models.schemas import Pagination
 import json
 
 router = APIRouter()
@@ -18,14 +17,13 @@ def get_total_songs():
     return {"total": get_total_uncategorized_songs()}
 
 
-@router.post("/")
-def get_songs(pagination: Pagination):
+@router.get("/")
+def get_songs(offset: int = Query(0), limit: int = Query(10)):
     '''
     Get uncategorized songs
     Args:
-        pagination (Pagination):
-            offset (int): Offset
-            limit (int): Limit
+        offset (int): Offset
+        limit (int): Limit
     Returns:
         dict: List of uncategorized songs
         {
@@ -34,15 +32,13 @@ def get_songs(pagination: Pagination):
                 {
                     "id": str,
                     "name": str,
-                    "artist": str,
+                    "artists": str,
                     "album": str
                 }
             ]
         }
     '''
     # get token from token.json
-    offset = pagination.offset
-    limit = pagination.limit
     with open("token.json", "r") as f:
         token = json.loads(f.read())['access_token']
     songs = get_uncategorized_songs(token, offset, limit)

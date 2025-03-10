@@ -13,7 +13,8 @@ def get_created_playlists(access_token: str):
         {
             "id": str,
             "name": str,
-            "owner_id": str
+            "owner_id": str,
+            "description": str
         }
     '''
     url = "https://api.spotify.com/v1/me/playlists"
@@ -32,7 +33,8 @@ def get_created_playlists(access_token: str):
                 {
                     "id": playlist["id"],
                     "name": playlist["name"],
-                    "owner_id": playlist["owner"]["id"]
+                    "owner_id": playlist["owner"]["id"],
+                    "description": playlist["description"]
                 } 
                 for playlist in data["items"]
             ]
