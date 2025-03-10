@@ -6,15 +6,7 @@ import {
   GET_SONGS_ENDPOINT,
   GET_PLAYLISTS_ENDPOINT } from '@/utils/config';
 import { Song, Playlist } from '@/types/spotify';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
+import AppPagination from '@/components/Pagination';
 import {
   Select,
   SelectContent,
@@ -159,10 +151,6 @@ const SongsPage: React.FC = () => {
       }
     }
 
-    const getLastPage = () => {
-      return Math.ceil(total / limit);
-    }
-
     const handleOffsetChange = (newOffset: number, newPage: number) => {
       if (newOffset < 0) {
         newOffset = 0;
@@ -171,7 +159,7 @@ const SongsPage: React.FC = () => {
         newOffset -= limit;
       }
 
-      const lastPage = getLastPage();
+      const lastPage = Math.ceil(total / limit);
       if (newPage < 1) {
         newPage = 1;
       }
@@ -211,71 +199,13 @@ const SongsPage: React.FC = () => {
               </SelectContent>
             </Select>
             {total > 0 &&
-              <Pagination>
-                <PaginationContent>
-                  {currentPage != 1 && 
-                    <>
-                      <PaginationItem>
-                        <PaginationPrevious onClick={() => {
-                          handleOffsetChange(offset-limit, currentPage-1);
-                        }} />
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink onClick={() => handleOffsetChange(0, 1)}>
-                          1
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  }
-                  {currentPage > 2 &&
-                    <>
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink onClick={() =>
-                          handleOffsetChange(offset-limit, currentPage-1)}>
-                          {currentPage-1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>         
-                  }
-                    <PaginationItem>
-                      <PaginationLink isActive={true}>
-                        {currentPage}
-                      </PaginationLink>
-                    </PaginationItem>
-                  {currentPage < getLastPage()-1 &&
-                    <>
-                      <PaginationItem>
-                        <PaginationLink onClick={() =>
-                          handleOffsetChange(offset+limit, currentPage+1)}>
-                          {currentPage+1}
-                        </PaginationLink>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    </>
-                  }
-                  {currentPage != getLastPage() &&
-                    <>
-                      <PaginationItem>
-                        <PaginationLink onClick={() => {
-                            handleOffsetChange((getLastPage()-1)*limit, getLastPage());
-                          }}>
-                            {getLastPage()}
-                        </PaginationLink>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationNext onClick={() => {
-                          handleOffsetChange(offset+limit, currentPage+1);
-                        }} />
-                      </PaginationItem>
-                    </>
-                  }
-                </PaginationContent>
-              </Pagination>
+              <AppPagination
+                offset={offset}
+                limit={limit}
+                total={total}
+                currentPage={currentPage}
+                handleOffsetChange={handleOffsetChange}
+              />
             }
         </div>
     )
