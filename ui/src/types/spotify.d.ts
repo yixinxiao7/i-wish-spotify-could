@@ -1,8 +1,11 @@
+import { Interface } from "readline";
+
+
 export interface Song {
     id: string;
     name: string;
-    artists: Artist[];
-    album: Album;
+    artists: string;
+    album: string;
     duration_ms: number;
     explicit: boolean;
     preview_url: string | null;
@@ -13,24 +16,31 @@ export interface Song {
     };
   }
   
-  export interface Artist {
-    id: string;
-    name: string;
-    external_urls: {
-      spotify: string;
-    };
-  }
   
-  export interface Album {
+  export interface Playlist {
     id: string;
     name: string;
-    release_date: string;
-    images: {
-      url: string;
-      height: number;
-      width: number;
-    }[];
-    external_urls: {
-      spotify: string;
-    };
+    owner_id: string;
   }
+
+  // export interface Artist {
+  //   id: string;
+  //   name: string;
+  //   external_urls: {
+  //     spotify: string;
+  //   };
+  // }
+  
+  // export interface Album {
+  //   id: string;
+  //   name: string;
+  //   release_date: string;
+  //   images: {
+  //     url: string;
+  //     height: number;
+  //     width: number;
+  //   }[];
+  //   external_urls: {
+  //     spotify: string;
+  //   };
+  // }
