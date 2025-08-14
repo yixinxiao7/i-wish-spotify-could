@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, Header
-from services.songs_service import *
-from models.schemas import Pagination
+from app.services.songs_service import *
+from app.models.schemas import Pagination
 import json
 
 router = APIRouter()

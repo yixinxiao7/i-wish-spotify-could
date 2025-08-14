@@ -1,7 +1,7 @@
 import requests
 import os
 import json
-from services.users_services import *
+from app.services.users_services import *
 
 def get_created_playlists(access_token: str):
     '''

@@ -2,7 +2,7 @@ import requests
 import os
 import json
 import time
-from services.playlists_service import *
+from app.services.playlists_service import *
 
 
 def get_total_liked_songs(access_token: str):

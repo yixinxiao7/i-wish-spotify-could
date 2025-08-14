@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from routers import oauth, songs
+from app.routers import oauth, songs
 
 
 app = FastAPI(title="i-wish-spotify-could api", version="1.0")

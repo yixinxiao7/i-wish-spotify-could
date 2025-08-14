@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 import requests
 import os
 from dotenv import load_dotenv
-from models.schemas import Code
+from app.models.schemas import Code
 
 
 # Load environment variables from .env file
@@ -47,6 +47,7 @@ def set_token(code: Code):
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.json())
 
+    print(response.text)
     # TODO: change to token manager like redis
     with open("token.json", "w") as f:
         f.write(response.text)
