@@ -1,8 +1,15 @@
 "use client"
 
 import React, { useEffect, useState } from 'react';
-import { GET_TOTAL_SONGS_ENDPOINT, GET_SONGS_ENDPOINT } from '@/utils/config';
-import { Song } from '@/types/spotify';
+
+import {
+  GET_TOTAL_SONGS_ENDPOINT,
+  GET_SONGS_ENDPOINT,
+  GET_PLAYLISTS_ENDPOINT
+} from '@/utils/config';
+
+import { Song, Playlist } from '@/types/spotify';
+
 import {
   Pagination,
   PaginationContent,
@@ -12,6 +19,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
+
 import {
   Select,
   SelectContent,
@@ -22,8 +30,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+import {
+  SongCard
+} from "@/components/ui/song"
+
 
 const SongsPage: React.FC = () => {
+    const [playlists, setPlaylists] = useState<Playlist[]>([]);
     const [songs, setSongs] = useState<Song[]>([]);
     const [total, setTotal] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState<number>(1);
@@ -32,6 +45,7 @@ const SongsPage: React.FC = () => {
     const [limit, setLimit] = useState<number>(10);
 
     useEffect(() => {
+        fetchPlaylists();  
         fetchTotalSongs();
         fetchSongs(offset, limit);
     }, []);
@@ -56,18 +70,42 @@ const SongsPage: React.FC = () => {
       }
     }
 
-    const fetchSongs = async (offset: number, limit: number) => {
+    const fetchPlaylists = async () => {
       try {
-        const response = await fetch(GET_SONGS_ENDPOINT, {
-          method: "POST",
+        const response = await fetch(GET_PLAYLISTS_ENDPOINT, {
+          method: "GET",
           mode: 'cors',
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
-            offset: offset,
-            limit: limit,
-          }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setPlaylists(data.playlists);
+        } else {
+          throw new Error("Failed to fetch playlists");
+        }
+      } catch (error) {
+        console.error("Error fetching playlists:", error);
+      }
+    }
+
+    const fetchSongs = async (offset: number, limit: number) => {
+      // construct urls
+      const params = new URLSearchParams({
+        offset: String(offset),
+        limit: String(limit),
+      }).toString();
+      const url = new URL(GET_SONGS_ENDPOINT);
+      url.search = params;
+
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          mode: 'cors',
+          headers: {
+            "Content-Type": "application/json"
+          }
         });
         if (response.ok) {
           const data = await response.json();
@@ -87,9 +125,14 @@ const SongsPage: React.FC = () => {
     const renderSongs = () => {
       if (songs.length !== 0) {
         return songs.map((song) => (
-            <div key={song.id}>
-                <h2>{song.name}</h2>
-            </div>
+          <SongCard
+            key={song.id}
+            id={song.id}
+            name={song.name}
+            artists={song.artists}
+            album={song.album}
+            allPlaylists={playlists}
+          />
         ));
       }
     }
@@ -130,7 +173,7 @@ const SongsPage: React.FC = () => {
 
     return (
         <div key="songs">
-            <h1>Songs</h1>
+            <h1>Uncategorized Songs</h1>
             {renderSongs()}
             <Select onValueChange={(value) => handleLimitChange(Number(value))}>
               <SelectTrigger className="w-[180px]">

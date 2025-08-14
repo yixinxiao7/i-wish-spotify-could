@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 import requests
 import os
 from dotenv import load_dotenv
-from models.schemas import Code
+from app.models.schemas import Code
 
 
 # Load environment variables from .env file
