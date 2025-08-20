@@ -36,6 +36,7 @@ interface SongProps {
 	name: string
 	artists: string
 	album: string
+	album_pic_url?: string
 	onRefresh: () => void
 	allPlaylists?: Playlist[]
 	className?: string
@@ -47,6 +48,7 @@ export const SongCard: React.FC<SongProps> = ({
 	name,
 	artists,
 	album,
+	album_pic_url,
 	onRefresh,
 	allPlaylists = [],
 	className = ""
@@ -172,25 +174,32 @@ export const SongCard: React.FC<SongProps> = ({
 				<div className="flex items-center justify-between space-x-4">
 					<div className="flex items-center space-x-4">
 						{/* Play/Pause Button */}
-									<Button
-										size="icon"
-										variant={isPlaying ? "secondary" : "default"}
-										onClick={handlePlaybackToggle}
-										disabled={playbackLoading}
-										aria-label={isPlaying ? "Pause" : "Play"}
-										className="mr-2 w-10 h-10 min-w-[40px] min-h-[40px] max-w-[40px] max-h-[40px]"
-									>
-							{isPlaying ? (
-								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-									<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" />
-									<rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" />
-								</svg>
-							) : (
-								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-									<polygon points="6,4 20,12 6,20" fill="currentColor" />
-								</svg>
-							)}
-						</Button>
+																<Button
+																	size="icon"
+																	variant={isPlaying ? "secondary" : "default"}
+																	onClick={handlePlaybackToggle}
+																	disabled={playbackLoading}
+																	aria-label={isPlaying ? "Pause" : "Play"}
+																	className="mr-4 w-16 h-16 min-w-[64px] min-h-[64px] max-w-[64px] max-h-[64px] p-0 overflow-hidden relative"
+																	style={album_pic_url ? { backgroundImage: `url('${album_pic_url}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+																>
+												{/* Overlay for icon visibility */}
+												{album_pic_url && (
+													<span className="absolute inset-0 bg-black/10 z-0" />
+												)}
+																<span className="relative z-10 flex items-center justify-center w-full h-full">
+																	{isPlaying ? (
+																		<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-white">
+																			<rect x="8" y="7" width="6" height="18" rx="1" fill="currentColor" />
+																			<rect x="18" y="7" width="6" height="18" rx="1" fill="currentColor" />
+																		</svg>
+																	) : (
+																		<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-white">
+																			<polygon points="8,6 28,16 8,26" fill="currentColor" />
+																		</svg>
+																	)}
+																</span>
+											</Button>
 						<div>
 							<CardTitle>{name}</CardTitle>
 							<CardDescription>

@@ -6,9 +6,10 @@ export interface Song {
     name: string;
     artists: string;
     album: string;
+    album_pic_url?: string; // Optional, may not always be present
     duration_ms: number;
     explicit: boolean;
-    preview_url: string | null;
+    preview_url?: string;
     track_number: number;
     popularity: number;
     external_urls: {

@@ -131,6 +131,7 @@ const SongsPage: React.FC = () => {
             name={song.name}
             artists={song.artists}
             album={song.album}
+            album_pic_url={song.album_pic_url}
             allPlaylists={playlists}
             onRefresh={refreshSongs}
             className="w-2/5"
