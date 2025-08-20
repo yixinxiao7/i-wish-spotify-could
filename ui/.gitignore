@@ -33,6 +33,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Ignore sensitive or generated API files
+api/all_uncategorized_songs.json
+api/token.json
+api/user_id.json
+
 # vercel
 .vercel
 
