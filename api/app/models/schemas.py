@@ -11,3 +11,6 @@ class Pagination(BaseModel):
 class SongPostData(BaseModel):
     songId: str
     playlistIds: list[str]
+
+class PlaybackModel(BaseModel):
+    songId: str

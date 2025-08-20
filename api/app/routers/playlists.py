@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Header
+from fastapi import APIRouter
 from app.services.playlists_service import *
 from app.models.schemas import SongPostData
 import json
