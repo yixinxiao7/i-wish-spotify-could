@@ -132,9 +132,15 @@ const SongsPage: React.FC = () => {
             artists={song.artists}
             album={song.album}
             allPlaylists={playlists}
+            onRefresh={refreshSongs}
           />
         ));
       }
+    }
+
+    const refreshSongs = () => {
+      setLoading(true);
+      fetchSongs(offset, limit);
     }
 
     const getLastPage = () => {

@@ -18,3 +18,4 @@ export const POST_TOKEN_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/o
 export const GET_TOTAL_SONGS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/songs/total`; 
 export const GET_SONGS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/songs`;
 export const GET_PLAYLISTS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists`;
+export const POST_PLAYLISTS_ADD_SONG_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/add-song`;
