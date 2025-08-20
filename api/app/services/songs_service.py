@@ -34,7 +34,8 @@ def get_liked_songs(access_token: str):
                 "id": str,
                 "name": str,
                 "artists": str,
-                "album": str
+                "album": str,
+                "album_pic_url": str
             }
         ]
     '''
@@ -56,7 +57,8 @@ def get_liked_songs(access_token: str):
                     "id": item["track"]["id"],
                     "name": item["track"]["name"],
                     "artists": ", ".join(artist["name"] for artist in item["track"]["artists"]),
-                    "album": item["track"]["album"]["name"]
+                    "album": item["track"]["album"]["name"],
+                    "album_pic_url": item["track"]["album"]["images"][0]["url"] if item["track"]["album"]["images"] else None,
                 }
                 for item in data["items"]
             ]
@@ -80,7 +82,8 @@ def get_uncategorized_songs(access_token: str, offset:int, limit:int):
                 "id": str,
                 "name": str,
                 "artists": str,
-                "album": str
+                "album": str,
+                "album_pic_url": str
             }
         ]
     '''

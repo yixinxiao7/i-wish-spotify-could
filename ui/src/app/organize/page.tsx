@@ -131,10 +131,18 @@ const SongsPage: React.FC = () => {
             name={song.name}
             artists={song.artists}
             album={song.album}
+            album_pic_url={song.album_pic_url}
             allPlaylists={playlists}
+            onRefresh={refreshSongs}
+            className="w-2/5"
           />
         ));
       }
+    }
+
+    const refreshSongs = () => {
+      setLoading(true);
+      fetchSongs(offset, limit);
     }
 
     const getLastPage = () => {
@@ -172,90 +180,94 @@ const SongsPage: React.FC = () => {
     }
 
     return (
-        <div key="songs">
-            <h1>Uncategorized Songs</h1>
-            {renderSongs()}
-            <Select onValueChange={(value) => handleLimitChange(Number(value))}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder={limit} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Limit</SelectLabel>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            {total > 0 &&
-              <Pagination>
-                <PaginationContent>
-                  {currentPage != 1 && 
-                    <>
-                      <PaginationItem>
-                        <PaginationPrevious onClick={() => {
-                          handleOffsetChange(offset-limit, currentPage-1);
-                        }} />
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink onClick={() => handleOffsetChange(0, 1)}>
-                          1
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  }
-                  {currentPage > 2 &&
-                    <>
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink onClick={() =>
-                          handleOffsetChange(offset-limit, currentPage-1)}>
-                          {currentPage-1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>         
-                  }
+      <div key="songs" className="flex flex-col items-center justify-center min-h-screen w-full">
+  <h1 className="mb-8 text-4xl font-bold tracking-tight text-center text-gray-900 drop-shadow-sm">Uncategorized Songs</h1>
+        <div className="flex flex-col items-center w-full gap-6">
+          {renderSongs()}
+        </div>
+        <div className="mt-8 flex flex-col items-center w-full gap-4">
+          <Select onValueChange={(value) => handleLimitChange(Number(value))}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder={limit} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Limit</SelectLabel>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          {total > 0 &&
+              <Pagination className="px-6 py-2">
+              <PaginationContent>
+                {currentPage != 1 && 
+                  <>
                     <PaginationItem>
-                      <PaginationLink isActive={true}>
-                        {currentPage}
+                      <PaginationPrevious onClick={() => {
+                        handleOffsetChange(offset-limit, currentPage-1);
+                      }} />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationLink onClick={() => handleOffsetChange(0, 1)}>
+                        1
                       </PaginationLink>
                     </PaginationItem>
-                  {currentPage < getLastPage()-1 &&
-                    <>
-                      <PaginationItem>
-                        <PaginationLink onClick={() =>
-                          handleOffsetChange(offset+limit, currentPage+1)}>
-                          {currentPage+1}
-                        </PaginationLink>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    </>
-                  }
-                  {currentPage != getLastPage() &&
-                    <>
-                      <PaginationItem>
-                        <PaginationLink onClick={() => {
-                            handleOffsetChange((getLastPage()-1)*limit, getLastPage());
-                          }}>
-                            {getLastPage()}
-                        </PaginationLink>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationNext onClick={() => {
-                          handleOffsetChange(offset+limit, currentPage+1);
-                        }} />
-                      </PaginationItem>
-                    </>
-                  }
-                </PaginationContent>
-              </Pagination>
-            }
+                  </>
+                }
+                {currentPage > 2 &&
+                  <>
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationLink onClick={() =>
+                        handleOffsetChange(offset-limit, currentPage-1)}>
+                        {currentPage-1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  </>         
+                }
+                  <PaginationItem>
+                    <PaginationLink isActive={true}>
+                      {currentPage}
+                    </PaginationLink>
+                  </PaginationItem>
+                {currentPage < getLastPage()-1 &&
+                  <>
+                    <PaginationItem>
+                      <PaginationLink onClick={() =>
+                        handleOffsetChange(offset+limit, currentPage+1)}>
+                        {currentPage+1}
+                      </PaginationLink>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  </>
+                }
+                {currentPage != getLastPage() &&
+                  <>
+                    <PaginationItem>
+                      <PaginationLink onClick={() => {
+                          handleOffsetChange((getLastPage()-1)*limit, getLastPage());
+                        }}>
+                          {getLastPage()}
+                      </PaginationLink>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationNext onClick={() => {
+                        handleOffsetChange(offset+limit, currentPage+1);
+                      }} />
+                    </PaginationItem>
+                  </>
+                }
+              </PaginationContent>
+            </Pagination>
+          }
         </div>
+      </div>
     )
 }
 

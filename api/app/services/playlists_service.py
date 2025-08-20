@@ -1,6 +1,7 @@
 import requests
 import os
 import json
+import concurrent.futures
 from app.services.users_services import *
 
 def get_created_playlists(access_token: str):
@@ -96,4 +97,29 @@ def get_playlist_songs(access_token: str, playlist_id: str):
     return all_songs
 
 
-__all__ = ["get_created_playlists", "get_playlist_songs"]
+def add_song_to_playlists(access_token: str, song_id: str, playlist_ids: list):
+    '''
+    Add a song to multiple playlists
+    Args:
+        access_token (str): Spotify access token
+        song_id (str): Spotify song ID
+        playlist_ids (list): List of playlist IDs to add the song to
+    Returns:
+        None
+    '''
+    
+    def add_song(playlist_id):
+        url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        data = {"uris": [f"spotify:track:{song_id}"]}
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code != 201:
+            raise Exception(f"Error adding song to playlist {playlist_id}: {response.status_code} - {response.json()}")
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(add_song, playlist_id) for playlist_id in playlist_ids]
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+
+
+__all__ = ["get_created_playlists", "get_playlist_songs", "add_song_to_playlists"]
