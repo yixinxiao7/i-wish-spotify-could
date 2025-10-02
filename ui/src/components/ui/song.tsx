@@ -76,12 +76,22 @@ export const SongCard: React.FC<SongProps> = ({
 		return (
 			<>
 				{allPlaylists.map((playlist) => (
-					<li key={playlist.id} className="flex items-center space-x-2 py-1">
-            <Checkbox 
-              id={`playlist-${playlist.id}`}
-              onCheckedChange={(checked) => updateSelectedPlaylists(playlist.id, checked)}
-            />
-            <label htmlFor={`playlist-${playlist.id}`}>{playlist.name}</label>
+					<li key={playlist.id} className="flex items-center space-x-3 py-2">
+						<img 
+							src={playlist.playlist_image_url || '/default-playlist.png'} 
+							alt={playlist.name}
+							className="w-10 h-10 rounded-sm object-cover"
+						/>
+						<Checkbox 
+							id={`playlist-${playlist.id}`}
+							onCheckedChange={(checked) => updateSelectedPlaylists(playlist.id, checked)}
+						/>
+						<label 
+							htmlFor={`playlist-${playlist.id}`}
+							className="truncate"
+						>
+							{playlist.name}
+						</label>
 					</li>
 				))}
 			</>
@@ -174,32 +184,32 @@ export const SongCard: React.FC<SongProps> = ({
 				<div className="flex items-center justify-between space-x-4">
 					<div className="flex items-center space-x-4">
 						{/* Play/Pause Button */}
-																<Button
-																	size="icon"
-																	variant={isPlaying ? "secondary" : "default"}
-																	onClick={handlePlaybackToggle}
-																	disabled={playbackLoading}
-																	aria-label={isPlaying ? "Pause" : "Play"}
-																	className="mr-4 w-16 h-16 min-w-[64px] min-h-[64px] max-w-[64px] max-h-[64px] p-0 overflow-hidden relative"
-																	style={album_pic_url ? { backgroundImage: `url('${album_pic_url}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-																>
-												{/* Overlay for icon visibility */}
-												{album_pic_url && (
-													<span className="absolute inset-0 bg-black/10 z-0" />
-												)}
-																<span className="relative z-10 flex items-center justify-center w-full h-full">
-																	{isPlaying ? (
-																		<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-white">
-																			<rect x="8" y="7" width="6" height="18" rx="1" fill="currentColor" />
-																			<rect x="18" y="7" width="6" height="18" rx="1" fill="currentColor" />
-																		</svg>
-																	) : (
-																		<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-white">
-																			<polygon points="8,6 28,16 8,26" fill="currentColor" />
-																		</svg>
-																	)}
-																</span>
-											</Button>
+						<Button
+							size="icon"
+							variant={isPlaying ? "secondary" : "default"}
+							onClick={handlePlaybackToggle}
+							disabled={playbackLoading}
+							aria-label={isPlaying ? "Pause" : "Play"}
+							className="mr-4 w-16 h-16 min-w-[64px] min-h-[64px] max-w-[64px] max-h-[64px] p-0 overflow-hidden relative"
+							style={album_pic_url ? { backgroundImage: `url('${album_pic_url}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+						>
+							{/* Overlay for icon visibility */}
+							{album_pic_url && (
+								<span className="absolute inset-0 bg-black/10 z-0" />
+							)}
+							<span className="relative z-10 flex items-center justify-center w-full h-full">
+								{isPlaying ? (
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-white">
+										<rect x="8" y="7" width="6" height="18" rx="1" fill="currentColor" />
+										<rect x="18" y="7" width="6" height="18" rx="1" fill="currentColor" />
+									</svg>
+								) : (
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-white">
+										<polygon points="8,6 28,16 8,26" fill="currentColor" />
+									</svg>
+								)}
+							</span>
+						</Button>
 						<div>
 							<CardTitle>{name}</CardTitle>
 							<CardDescription>
@@ -212,26 +222,26 @@ export const SongCard: React.FC<SongProps> = ({
 					</div>
 					<Dialog>
 						<DialogTrigger asChild>
-															<Button
-																size="sm"
-																className="ml-2 whitespace-nowrap w-28 h-10 min-w-[112px] min-h-[40px] max-w-[112px] max-h-[40px] bg-[#1DB954] text-black hover:bg-[#1ed760]">
-																Add to playlists
-															</Button>
+							<Button
+								size="sm"
+								className="ml-2 whitespace-nowrap w-28 h-10 min-w-[112px] min-h-[40px] max-w-[112px] max-h-[40px] bg-[#1DB954] text-black hover:bg-[#1ed760]">
+								Add to playlists
+							</Button>
 						</DialogTrigger>
-						<DialogContent>
+						<DialogContent className="max-h-[80vh] overflow-hidden">
 							<DialogHeader>
 								<DialogTitle>Playlists</DialogTitle>
-								<DialogDescription>
+								<DialogDescription className="max-h-[60vh] overflow-y-auto pr-4">
 									{renderPlaylists()}
 								</DialogDescription>
 							</DialogHeader>
 							<DialogFooter className="flex justify-center w-full">
-																<Button
-																	onClick={addSongToPlaylists}
-																	  className="w-28 h-10 min-w-[112px] min-h-[40px] max-w-[112px] max-h-[40px] bg-[#1DB954] text-black hover:bg-[#1ed760]"
-																>
-																	Add to Playlists
-																</Button>
+								<Button
+									onClick={addSongToPlaylists}
+									className="w-28 h-10 min-w-[112px] min-h-[40px] max-w-[112px] max-h-[40px] bg-[#1DB954] text-black hover:bg-[#1ed760]"
+								>
+									Add to Playlists
+								</Button>
 							</DialogFooter>
 						</DialogContent>
 					</Dialog>

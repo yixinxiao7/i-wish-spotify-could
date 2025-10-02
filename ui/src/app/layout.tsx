@@ -60,7 +60,29 @@ export default function RootLayout({
           {/* Navbar         */}
           <nav style={{ padding: "1rem", background: "inherit", color: "inherit" }}>
             <ul style={{ display: "flex", gap: "1rem", listStyle: "none" }}>
-              <li><Link href="/">Home</Link></li>
+              <li>
+                <Link 
+                  href="/"
+                  style={{
+                    color: "#111",
+                    fontWeight: 700,
+                    fontSize: "1.15rem",
+                    letterSpacing: "0.03em",
+                    textDecoration: "none",
+                    transition: "text-decoration 0.2s, color 0.2s"
+                  }}
+                  onMouseOver={e => {
+                    (e.target as HTMLElement).style.textDecoration = 'underline';
+                    (e.target as HTMLElement).style.color = '#1DB954';
+                  }}
+                  onMouseOut={e => {
+                    (e.target as HTMLElement).style.textDecoration = 'none';
+                    (e.target as HTMLElement).style.color = '#111';
+                  }}
+                >
+                  Home
+                </Link>
+              </li>
             </ul>
           </nav>
           {/* Main Page Content */}

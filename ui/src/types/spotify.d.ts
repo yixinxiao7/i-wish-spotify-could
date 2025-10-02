@@ -22,6 +22,7 @@ export interface Song {
     id: string;
     name: string;
     owner_id: string;
+    playlist_image_url?: string;
   }
 
   // export interface Artist {

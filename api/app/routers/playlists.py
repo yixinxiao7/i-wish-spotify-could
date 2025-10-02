@@ -18,7 +18,8 @@ def get_playlists():
                 {
                     "id": str,
                     "name": str,
-                    "owner_id": str
+                    "owner_id": str,
+                    "playlist_image_url": str | None
                 }
             ]
         }
