@@ -51,20 +51,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="layout">
-        {/* <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          > */}
           {/* Navbar         */}
-          <nav style={{ padding: "1rem", background: "inherit", color: "inherit" }}>
+          <nav style={{ 
+            padding: "1rem", 
+            background: pathname === "/" 
+            ? "linear-gradient(to right, rgb(88, 28, 135), rgb(30, 58, 138))" 
+            : "white",
+            color: "inherit" 
+          }}>
             <ul style={{ display: "flex", gap: "1rem", listStyle: "none" }}>
               <li>
                 <Link 
                   href="/"
                   style={{
-                    color: "#111",
+                    color: pathname === "/" ? "#fff" : "#000",
                     fontWeight: 700,
                     fontSize: "1.15rem",
                     letterSpacing: "0.03em",
@@ -72,15 +72,15 @@ export default function RootLayout({
                     transition: "text-decoration 0.2s, color 0.2s"
                   }}
                   onMouseOver={e => {
-                    (e.target as HTMLElement).style.textDecoration = 'underline';
-                    (e.target as HTMLElement).style.color = '#1DB954';
+                  (e.target as HTMLElement).style.textDecoration = 'underline';
+                  (e.target as HTMLElement).style.color = '#1DB954';
                   }}
                   onMouseOut={e => {
-                    (e.target as HTMLElement).style.textDecoration = 'none';
-                    (e.target as HTMLElement).style.color = '#111';
+                  (e.target as HTMLElement).style.textDecoration = 'none';
+                  (e.target as HTMLElement).style.color = pathname === "/" ? '#fff' : '#000';
                   }}
-                >
-                  Home
+                  >
+                    Home
                 </Link>
               </li>
             </ul>
