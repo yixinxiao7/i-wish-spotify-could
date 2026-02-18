@@ -12,8 +12,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],  # TODO: Change this to specific origins in production
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT"],
+    allow_headers=["Content-Type"],
 )
 
 app.include_router(oauth.router, prefix="/api/oauth", tags=["OAuth"])

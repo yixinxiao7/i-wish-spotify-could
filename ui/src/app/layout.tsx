@@ -29,8 +29,10 @@ export default function RootLayout({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    if (!sessionStorage.getItem("token_expiry")
-      && pathname !== "/login" && pathname !== "/callback") {
+    const expiry = sessionStorage.getItem("token_expiry");
+    const now = Math.floor(Date.now() / 1000);
+    const isExpired = !expiry || parseInt(expiry) < now;
+    if (isExpired && pathname !== "/login" && pathname !== "/callback") {
       router.push("/login");
     } else {
       setIsAuthenticated(true);
@@ -51,16 +53,23 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="layout">
-        {/* <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          > */}
           {/* Navbar         */}
-          <nav style={{ padding: "1rem", background: "inherit", color: "inherit" }}>
+          <nav style={{ 
+            padding: "1rem", 
+            background: pathname === "/" 
+            ? "linear-gradient(to right, rgb(88, 28, 135), rgb(30, 58, 138))" 
+            : "white",
+            color: "inherit" 
+          }}>
             <ul style={{ display: "flex", gap: "1rem", listStyle: "none" }}>
-              <li><Link href="/">Home</Link></li>
+              <li>
+                <Link
+                  href="/"
+                  className={`font-bold text-[1.15rem] tracking-[0.03em] no-underline transition-colors duration-200 hover:underline hover:text-[#1DB954] ${pathname === "/" ? "text-white" : "text-black"}`}
+                >
+                  Home
+                </Link>
+              </li>
             </ul>
           </nav>
           {/* Main Page Content */}

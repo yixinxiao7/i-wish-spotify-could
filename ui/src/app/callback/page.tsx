@@ -18,11 +18,13 @@ const getTokenExpiration = async (code: string) => {
 }
 
 const CallbackPage = async ({searchParams}) => {
-  const code = (await searchParams).code;
+  const params = await searchParams;
+  const code = params.code;
+  const state = params.state;
   const expires_in = await getTokenExpiration(code)
   return (
     <div>
-      <ClientComponent token_expires_in={expires_in}/>
+      <ClientComponent token_expires_in={expires_in} state={state}/>
     </div>
   )
 

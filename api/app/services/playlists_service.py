@@ -2,7 +2,7 @@ import requests
 import os
 import json
 import concurrent.futures
-from app.services.users_services import *
+from app.services.users_services import get_current_user_id
 
 def get_created_playlists(access_token: str):
     '''
@@ -14,7 +14,8 @@ def get_created_playlists(access_token: str):
         {
             "id": str,
             "name": str,
-            "owner_id": str
+            "owner_id": str,
+            "playlist_image_url": str | None
         }
     '''
     url = "https://api.spotify.com/v1/me/playlists"
@@ -33,7 +34,9 @@ def get_created_playlists(access_token: str):
                 {
                     "id": playlist["id"],
                     "name": playlist["name"],
-                    "owner_id": playlist["owner"]["id"]
+                    "owner_id": playlist["owner"]["id"],
+                    "playlist_image_url": playlist["images"][0]["url"] if playlist["images"] else None,
+
                 } 
                 for playlist in data["items"]
             ]
@@ -116,7 +119,7 @@ def add_song_to_playlists(access_token: str, song_id: str, playlist_ids: list):
         if response.status_code != 201:
             raise Exception(f"Error adding song to playlist {playlist_id}: {response.status_code} - {response.json()}")
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(add_song, playlist_id) for playlist_id in playlist_ids]
         for future in concurrent.futures.as_completed(futures):
             future.result()
