@@ -1,9 +1,12 @@
-from fastapi import APIRouter
-from app.services.playlists_service import *
+from fastapi import APIRouter, HTTPException
+from app.services.playlists_service import get_created_playlists, add_song_to_playlists
+from app.services.token_service import get_valid_token
 from app.models.schemas import SongPostData
+import logging
 import json
 import os
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.get("/")
@@ -24,8 +27,7 @@ def get_playlists():
             ]
         }
     '''
-    with open("token.json", "r") as f:
-        token = json.loads(f.read())['access_token']
+    token = get_valid_token()
     playlists = get_created_playlists(token)
     return {"playlists": playlists}
 
@@ -44,8 +46,7 @@ def post_song_to_playlists(song_post_data: SongPostData):
     '''
     song_id = song_post_data.songId
     playlist_ids = song_post_data.playlistIds
-    with open("token.json", "r") as f:
-        token = json.loads(f.read())['access_token']
+    token = get_valid_token()
     try:
         add_song_to_playlists(token, song_id, playlist_ids)
 
@@ -60,7 +61,7 @@ def post_song_to_playlists(song_post_data: SongPostData):
                 f.write(json.dumps(all_uncategorized_songs))
 
     except Exception as e:
-        # TODO: convert these to proper responses
-        return {"message": str(e)}
-    
+        logger.error("Failed to add song %s to playlists: %s", song_id, str(e))
+        raise HTTPException(status_code=500, detail="Failed to add song to playlists")
+
     return {"message": "Song added to playlists successfully!"}

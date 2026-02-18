@@ -16,10 +16,12 @@ const generateRandomString = (length = 16) => {
 
 const Login: React.FC = () => {
     const handleLogin = () => {
+        const state = generateRandomString();
+        sessionStorage.setItem('oauth_state', state);
         const authUrl = `${AUTHORIZE_ENDPOINT}?client_id=${client_id}` +
                         `&response_type=code` +
                         `&redirect_uri=${encodeURIComponent(redirect_url)}` +
-                        `&state=${generateRandomString()}` +
+                        `&state=${state}` +
                         `&scope=${scopes_url_params}`;
         window.location.href = authUrl;
     }

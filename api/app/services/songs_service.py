@@ -2,7 +2,7 @@ import requests
 import os
 import json
 import time
-from app.services.playlists_service import *
+from app.services.playlists_service import get_created_playlists, get_playlist_songs
 
 
 def get_total_liked_songs(access_token: str):
@@ -113,8 +113,13 @@ def get_total_uncategorized_songs():
         int: Total number of uncategorized songs
     '''
     all_uncategorized_songs_path = 'all_uncategorized_songs.json'
-    while not os.path.exists(all_uncategorized_songs_path):  # wait for the file to be created
+    timeout = 30
+    elapsed = 0
+    while not os.path.exists(all_uncategorized_songs_path):
+        if elapsed >= timeout:
+            raise Exception("Timed out waiting for uncategorized songs cache to be created")
         time.sleep(1)
+        elapsed += 1
 
     with open(all_uncategorized_songs_path, 'r') as f:
         all_uncategorized_songs = json.loads(f.read())

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
-from app.services.playback_services import *
+from app.services.playback_services import toggle_playback
+from app.services.token_service import get_valid_token
 from app.models.schemas import PlaybackModel
-import json
 
 
 router = APIRouter()
@@ -9,8 +9,7 @@ router = APIRouter()
 @router.put("/start")
 def start_playback(playback_data: PlaybackModel):
     song_id = playback_data.songId
-    with open("token.json", "r") as f:
-        token = json.loads(f.read())['access_token']
+    token = get_valid_token()
     try:
         toggle_playback(token, action="play", song_id=song_id) # TODO: convert to enum
         return {"message": "Playback started successfully"}
@@ -21,8 +20,7 @@ def start_playback(playback_data: PlaybackModel):
 @router.put("/stop")
 def stop_playback(playback_data: PlaybackModel):
     song_id = playback_data.songId
-    with open("token.json", "r") as f:
-        token = json.loads(f.read())['access_token']
+    token = get_valid_token()
     try:
         toggle_playback(token, action="pause", song_id=song_id) # TODO: convert to enum
         return {"message": "Playback stopped successfully"}

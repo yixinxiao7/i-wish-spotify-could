@@ -2,8 +2,13 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 import requests
 import os
+import time
+import json
+import logging
 from dotenv import load_dotenv
 from app.models.schemas import Code
+
+logger = logging.getLogger(__name__)
 
 
 # Load environment variables from .env file
@@ -45,14 +50,18 @@ def set_token(code: Code):
     response = requests.post(token_url, data=payload, headers=headers)
 
     if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.json())
+        logger.error("Spotify token exchange failed (%s): %s", response.status_code, response.text)
+        raise HTTPException(status_code=502, detail="Failed to exchange authorization code")
+
+    token_data = response.json()
+    token_data["expires_at"] = int(time.time()) + token_data["expires_in"]
 
     # TODO: change to token manager like redis
     with open("token.json", "w") as f:
-        f.write(response.text)
+        json.dump(token_data, f)
 
     return JSONResponse(
         content={"message": "successfully exchanged code for token.",
-                 "expires_in": response.json()["expires_in"]},
+                 "expires_in": token_data["expires_in"]},
         status_code=200
         )

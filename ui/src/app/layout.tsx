@@ -29,8 +29,10 @@ export default function RootLayout({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    if (!sessionStorage.getItem("token_expiry")
-      && pathname !== "/login" && pathname !== "/callback") {
+    const expiry = sessionStorage.getItem("token_expiry");
+    const now = Math.floor(Date.now() / 1000);
+    const isExpired = !expiry || parseInt(expiry) < now;
+    if (isExpired && pathname !== "/login" && pathname !== "/callback") {
       router.push("/login");
     } else {
       setIsAuthenticated(true);
@@ -61,26 +63,11 @@ export default function RootLayout({
           }}>
             <ul style={{ display: "flex", gap: "1rem", listStyle: "none" }}>
               <li>
-                <Link 
+                <Link
                   href="/"
-                  style={{
-                    color: pathname === "/" ? "#fff" : "#000",
-                    fontWeight: 700,
-                    fontSize: "1.15rem",
-                    letterSpacing: "0.03em",
-                    textDecoration: "none",
-                    transition: "text-decoration 0.2s, color 0.2s"
-                  }}
-                  onMouseOver={e => {
-                  (e.target as HTMLElement).style.textDecoration = 'underline';
-                  (e.target as HTMLElement).style.color = '#1DB954';
-                  }}
-                  onMouseOut={e => {
-                  (e.target as HTMLElement).style.textDecoration = 'none';
-                  (e.target as HTMLElement).style.color = pathname === "/" ? '#fff' : '#000';
-                  }}
-                  >
-                    Home
+                  className={`font-bold text-[1.15rem] tracking-[0.03em] no-underline transition-colors duration-200 hover:underline hover:text-[#1DB954] ${pathname === "/" ? "text-white" : "text-black"}`}
+                >
+                  Home
                 </Link>
               </li>
             </ul>
