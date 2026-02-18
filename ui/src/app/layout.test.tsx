@@ -60,5 +60,6 @@ describe("RootLayout", () => {
 
     await waitFor(() => expect(screen.getByText("Login child")).toBeInTheDocument());
     expect(pushMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: "Home" })).not.toBeInTheDocument();
   });
 });
