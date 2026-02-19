@@ -22,3 +22,4 @@ export const GET_PLAYLISTS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/ap
 export const POST_PLAYLISTS_ADD_SONG_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/add-song`;
 export const PUT_START_PLAYBACK_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playback/start`;
 export const PUT_STOP_PLAYBACK_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playback/stop`;
+export const DELETE_LOGOUT_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/oauth/logout`;
