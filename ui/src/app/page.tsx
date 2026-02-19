@@ -14,7 +14,7 @@ const Landing: React.FC = () => {
         <p className="mb-2 text-xs uppercase tracking-[0.28em] text-emerald-700/90">I Wish Spotify Could</p>
         <h1 className="text-3xl font-bold leading-tight text-[#185a57] sm:text-4xl">do the following</h1>
         <p className="mt-4 text-sm leading-relaxed text-[#2a4d52] sm:text-base">
-            try out what's available!
+            try out what&apos;s available!
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">

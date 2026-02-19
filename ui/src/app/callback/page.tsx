@@ -1,6 +1,4 @@
 import { POST_TOKEN_ENDPOINT } from '@/utils/config';
-import { redirect } from 'next/navigation';
-import { headers, cookies } from 'next/headers';
 import ClientComponent from './ClientComponent';
 
 const getTokenExpiration = async (code: string) => {

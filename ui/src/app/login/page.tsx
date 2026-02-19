@@ -42,7 +42,7 @@ const Login: React.FC = () => {
         <p className="mb-2 text-xs uppercase tracking-[0.28em] text-emerald-700/90">I Wish Spotify Could</p>
         <h1 className="text-4xl font-bold leading-tight text-[#185a57]">better organize your songs</h1>
         <p className="mt-4 text-sm leading-relaxed text-[#2a4d52]">
-          but there's little things missing, so here's a couple of tools to help you out!
+          but there&apos;s little things missing, so here&apos;s a couple of tools to help you out!
         </p>
         <Button
           onClick={handleLogin}

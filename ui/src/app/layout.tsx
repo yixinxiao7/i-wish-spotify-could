@@ -3,7 +3,6 @@
 import React, { useEffect, useState }  from "react";
 import { IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider"
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { DELETE_LOGOUT_ENDPOINT } from "@/utils/config";

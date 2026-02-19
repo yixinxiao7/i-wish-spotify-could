@@ -1,6 +1,3 @@
-import { Interface } from "readline";
-
-
 export interface Song {
     id: string;
     name: string;

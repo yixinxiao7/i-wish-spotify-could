@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 
-import { 
+import {
 	Card,
 	CardHeader,
 	CardTitle,
 	CardDescription,
-	CardContent,
-	CardFooter
 } from "./card"
 
 import {
@@ -175,7 +173,7 @@ export const SongCard: React.FC<SongProps> = ({
 					alert('Failed to stop playback.');
 				}
 			}
-		} catch (error) {
+		} catch (_error) {
 			alert('An error occurred while toggling playback.');
 		} finally {
 			setPlaybackLoading(false);

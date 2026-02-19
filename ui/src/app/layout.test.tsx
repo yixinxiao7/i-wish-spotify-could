@@ -36,9 +36,8 @@ async function invokeOnClick(
   options: { swallowError?: boolean } = {}
 ) {
   const propsKey = Object.keys(element).find((k) => k.startsWith("__reactProps"));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const onClick: ((e: unknown) => Promise<void>) | undefined = propsKey
-    ? ((element as any)[propsKey]?.onClick as (e: unknown) => Promise<void>)
+    ? ((element as any)[propsKey]?.onClick as (e: unknown) => Promise<void>) // eslint-disable-line @typescript-eslint/no-explicit-any
     : undefined;
 
   if (!onClick) throw new Error("No onClick found on element");
