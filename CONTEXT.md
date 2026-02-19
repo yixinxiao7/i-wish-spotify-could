@@ -5,6 +5,14 @@
 
 ---
 
+## UI Conventions
+
+- **Text casing:** All UI-facing strings are intentionally **lowercase** (e.g. "home", "categorize songs", "coming soon..."). Do not capitalize these unless explicitly asked.
+- **Color theme:** Primary gradient is green-to-cyan (`linear-gradient(90deg, #3fd15a, #5bc6f5)`), used on buttons and the navbar link.
+- **Primary dark color:** `#134f55` (dark teal) — used for text strokes, headings, and accents.
+
+---
+
 ## 1. Purpose
 
 `i-wish-spotify-could` is a personal Spotify utility web app that lets a user do things Spotify's native UI doesn't support — currently: **categorizing uncategorized liked songs into playlists**.
@@ -370,13 +378,12 @@ Pause playback.
 ### `layout.tsx` — Root Layout
 - **Client component** (`"use client"`) — unusual for Next.js root layout, loses SSR metadata support.
 - On mount, checks `sessionStorage['token_expiry']` exists **and** its value is greater than the current Unix timestamp. If expired or missing and not on `/login` or `/callback`, redirects to `/login`.
-- Renders a top navbar with a "Home" link and a footer.
-- Navbar background is a purple-to-blue gradient on the home page, white on all other pages.
-- Navbar hover uses Tailwind classes (`hover:underline hover:text-[#1DB954]`).
+- Renders a top navbar with a "home" link (lowercase) and a footer.
+- Navbar is `bg-transparent`. The "home" link uses a green-to-cyan gradient text (`#3fd15a → #5bc6f5`) with a dark teal text stroke (`#134f55`).
 
 ### `page.tsx` — Landing Page (`/`)
-- Two buttons: "Categorize Songs" → `/organize`, and "yeety!" (no action, placeholder).
-- Full-screen purple-to-blue gradient background.
+- Two buttons: "categorize songs" → `/organize`, and "coming soon..." (no action, placeholder).
+- Buttons use the same green-to-cyan gradient (`#3fd15a → #5bc6f5`).
 
 ### `login/page.tsx` — Login Page (`/login`)
 - Generates a random 16-character state string.

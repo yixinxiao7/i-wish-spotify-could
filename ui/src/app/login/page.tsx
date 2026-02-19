@@ -32,7 +32,6 @@ const Login: React.FC = () => {
       style={{
         background:
           'linear-gradient(145deg, #d5f7ff 0%, #8fdfff 26%, #6cb4ef 48%, #6fdc94 72%, #b8f487 100%)',
-        fontFamily: '"Avenir Next", "Trebuchet MS", "Gill Sans", sans-serif',
       }}
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_24%,rgba(255,255,255,0.72),transparent_46%),radial-gradient(circle_at_78%_14%,rgba(176,248,255,0.58),transparent_42%),radial-gradient(circle_at_22%_82%,rgba(163,255,154,0.46),transparent_44%),radial-gradient(circle_at_84%_74%,rgba(255,243,146,0.42),transparent_38%),radial-gradient(circle_at_48%_54%,rgba(96,163,255,0.38),transparent_52%)]" />

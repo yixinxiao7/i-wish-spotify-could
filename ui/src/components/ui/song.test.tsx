@@ -73,8 +73,8 @@ describe("SongCard", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add to playlists" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add to Playlists" }));
+    fireEvent.click(screen.getByRole("button", { name: "add to playlists" }));
+    fireEvent.click(screen.getByRole("button", { name: "add" }));
 
     expect(window.alert).toHaveBeenCalledWith(
       "Please select at least one playlist to add the song to."
@@ -96,11 +96,11 @@ describe("SongCard", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add to playlists" }));
+    fireEvent.click(screen.getByRole("button", { name: "add to playlists" }));
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("checkbox"));
-    const submit = screen.getByRole("button", { name: "Add to Playlists" });
+    const submit = screen.getByRole("button", { name: "add" });
     submit.focus();
     fireEvent.click(submit);
 
@@ -147,9 +147,9 @@ describe("SongCard", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add to playlists" }));
+    fireEvent.click(screen.getByRole("button", { name: "add to playlists" }));
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Add to Playlists" }));
+    fireEvent.click(screen.getByRole("button", { name: "add" }));
 
     await waitFor(() =>
       expect(window.alert).toHaveBeenCalledWith("Failed to add songs to playlists.")
@@ -169,9 +169,9 @@ describe("SongCard", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add to playlists" }));
+    fireEvent.click(screen.getByRole("button", { name: "add to playlists" }));
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Add to Playlists" }));
+    fireEvent.click(screen.getByRole("button", { name: "add" }));
 
     await waitFor(() =>
       expect(window.alert).toHaveBeenCalledWith(
@@ -224,7 +224,7 @@ describe("SongCard", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add to playlists" }));
+    fireEvent.click(screen.getByRole("button", { name: "add to playlists" }));
     expect(screen.getByText("No playlists available")).toBeInTheDocument();
   });
 });

@@ -65,3 +65,14 @@ def set_token(code: Code):
                  "expires_in": token_data["expires_in"]},
         status_code=200
         )
+
+
+@router.delete("/logout")
+def logout():
+    """
+    Clear the stored token and cached user data to force re-authentication.
+    """
+    for path in ("token.json", "user_id.json", "all_uncategorized_songs.json"):
+        if os.path.exists(path):
+            os.remove(path)
+    return {"message": "logged out successfully"}

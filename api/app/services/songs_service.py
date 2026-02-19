@@ -1,8 +1,8 @@
-import requests
 import os
 import json
 import time
 from app.services.playlists_service import get_created_playlists, get_playlist_songs
+from app.services.http_client import spotify_get
 
 
 def get_total_liked_songs(access_token: str):
@@ -15,9 +15,9 @@ def get_total_liked_songs(access_token: str):
     '''
     url = "https://api.spotify.com/v1/me/tracks?limit=1"
     headers = {"Authorization": f"Bearer {access_token}"}
-    response = requests.get(url, headers=headers)
+    response = spotify_get(url, headers=headers)
     if response.status_code != 200:
-        raise Exception(f"Error: {response.status_code} - {response.json()}")
+        raise Exception(f"Error: {response.status_code} - {response.text}")
     data = response.json()
     return data["total"]
 
@@ -45,9 +45,9 @@ def get_liked_songs(access_token: str):
     while offset < total:
         url = f"https://api.spotify.com/v1/me/tracks?limit=50&offset={offset}"
         headers = {"Authorization": f"Bearer {access_token}"}
-        response = requests.get(url, headers=headers)
+        response = spotify_get(url, headers=headers)
         if response.status_code != 200:
-            raise Exception(f"Error: {response.status_code} - {response.json()}")
+            raise Exception(f"Error: {response.status_code} - {response.text}")
 
         data = response.json()
         total = data["total"]
@@ -61,6 +61,7 @@ def get_liked_songs(access_token: str):
                     "album_pic_url": item["track"]["album"]["images"][0]["url"] if item["track"]["album"]["images"] else None,
                 }
                 for item in data["items"]
+                if item.get("track") and item["track"].get("id")
             ]
         )
         offset += 50
@@ -98,7 +99,11 @@ def get_uncategorized_songs(access_token: str, offset:int, limit:int):
         all_playlists = get_created_playlists(access_token)
         all_playlist_songs = []
         for playlist in all_playlists:
-            all_playlist_songs.extend(get_playlist_songs(access_token, playlist['id']))
+            try:
+                all_playlist_songs.extend(get_playlist_songs(access_token, playlist['id']))
+            except Exception as e:
+                print(f"Warning: skipping playlist {playlist['id']} ({playlist['name']}): {e}")
+                continue
         all_playlist_song_ids = set([song['track']['id'] for song in all_playlist_songs])
         all_uncategorized_songs = [song for song in all_liked_songs if song['id'] not in all_playlist_song_ids]
         with open(all_uncategorized_songs_path, 'w') as f:
