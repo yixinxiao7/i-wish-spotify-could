@@ -1,8 +1,8 @@
-import requests
 import os
 import json
 import concurrent.futures
 from app.services.users_services import get_current_user_id
+from app.services.http_client import spotify_get, spotify_post
 
 def get_created_playlists(access_token: str):
     '''
@@ -25,9 +25,9 @@ def get_created_playlists(access_token: str):
     limit = 50
 
     while True:
-        response = requests.get(url, headers=headers, params={"offset": offset, "limit": limit})
+        response = spotify_get(url, headers=headers, params={"offset": offset, "limit": limit})
         if response.status_code != 200:
-            raise Exception(f"Error: {response.status_code} - {response.json()}")
+            raise Exception(f"Error: {response.status_code} - {response.text}")
         data = response.json()
         all_playlists.extend(
             [
@@ -88,9 +88,11 @@ def get_playlist_songs(access_token: str, playlist_id: str):
     limit = 100
 
     while True:
-        response = requests.get(url, headers=headers, params={"offset": offset, "limit": limit})
+        response = spotify_get(url, headers=headers, params={"offset": offset, "limit": limit})
+        if response.status_code == 403:
+            raise PermissionError(f"403 Forbidden for playlist {playlist_id}: {response.text}")
         if response.status_code != 200:
-            raise Exception(f"Error: {response.status_code} - {response.json()}")
+            raise Exception(f"Error: {response.status_code} - {response.text}")
         data = response.json()
         all_songs.extend(data["items"])
         if len(data["items"]) < limit:
@@ -115,9 +117,11 @@ def add_song_to_playlists(access_token: str, song_id: str, playlist_ids: list):
         url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
         headers = {"Authorization": f"Bearer {access_token}"}
         data = {"uris": [f"spotify:track:{song_id}"]}
-        response = requests.post(url, headers=headers, json=data)
-        if response.status_code != 201:
-            raise Exception(f"Error adding song to playlist {playlist_id}: {response.status_code} - {response.json()}")
+        response = spotify_post(url, headers=headers, json=data)
+        if response.status_code == 403:
+            raise PermissionError(f"Permission denied for playlist {playlist_id} — re-login may be required")
+        if response.status_code not in (200, 201):
+            raise Exception(f"Error adding song to playlist {playlist_id}: {response.status_code} - {response.text}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(add_song, playlist_id) for playlist_id in playlist_ids]

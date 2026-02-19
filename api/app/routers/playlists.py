@@ -60,6 +60,9 @@ def post_song_to_playlists(song_post_data: SongPostData):
             with open(uncategorized_songs_path, 'w') as f:
                 f.write(json.dumps(all_uncategorized_songs))
 
+    except PermissionError as e:
+        logger.warning("Permission denied adding song %s to playlists: %s", song_id, str(e))
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         logger.error("Failed to add song %s to playlists: %s", song_id, str(e))
         raise HTTPException(status_code=500, detail="Failed to add song to playlists")

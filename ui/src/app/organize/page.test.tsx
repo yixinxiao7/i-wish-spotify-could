@@ -78,7 +78,7 @@ describe("Organize page", () => {
   it("loads and renders songs", async () => {
     render(<OrganizePage />);
 
-    await waitFor(() => expect(screen.getByText("Uncategorized Songs")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("uncategorized songs")).toBeInTheDocument());
     expect(screen.getByText("Song One-0-10-0")).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/songs/total"),
@@ -112,7 +112,7 @@ describe("Organize page", () => {
     global.fetch = createFetchMock({ total: 0, songs: [] });
     render(<OrganizePage />);
 
-    await waitFor(() => expect(screen.getByText("Uncategorized Songs")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("uncategorized songs")).toBeInTheDocument());
     expect(screen.queryByLabelText("Go to next page")).not.toBeInTheDocument();
   });
 
@@ -120,7 +120,7 @@ describe("Organize page", () => {
     global.fetch = createFetchMock({ failPlaylists: true, failTotal: true, failSongs: true });
     render(<OrganizePage />);
 
-    await waitFor(() => expect(screen.getByText("Uncategorized Songs")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("uncategorized songs")).toBeInTheDocument());
     expect(console.error).toHaveBeenCalled();
   });
 });

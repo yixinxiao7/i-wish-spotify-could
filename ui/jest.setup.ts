@@ -33,6 +33,7 @@ Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
 jest.mock("next/font/google", () => ({
   Geist: () => ({ variable: "font-geist-sans" }),
   Geist_Mono: () => ({ variable: "font-geist-mono" }),
+  IBM_Plex_Mono: () => ({ variable: "font-ibm-plex-mono", className: "font-ibm-plex-mono" }),
 }));
 
 jest.mock("lucide-react", () => ({

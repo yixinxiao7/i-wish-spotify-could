@@ -53,6 +53,10 @@ export const SongCard: React.FC<SongProps> = ({
 	allPlaylists = [],
 	className = ""
 }) => {
+	const primaryPillButton =
+		"rounded-full border border-white/90 bg-[linear-gradient(90deg,#3fd15a,#5bc6f5)] text-[#033524] shadow-[0_10px_30px_rgba(64,160,170,0.26)] transition hover:scale-[1.01] hover:brightness-105";
+	const mutedPillButton =
+		"rounded-full border border-[#9fd3e9] bg-[linear-gradient(90deg,rgba(248,251,253,0.9),rgba(226,241,250,0.9))] text-[#1f5f69] shadow-[0_10px_30px_rgba(64,160,170,0.18)] transition hover:scale-[1.01] hover:brightness-105";
 
 	const [selectedPlaylists, setSelectedPlaylists] = useState<Playlist[]>([]);
 
@@ -179,7 +183,7 @@ export const SongCard: React.FC<SongProps> = ({
 	};
 
 		return (
-			<Card className={`w-full max-w-5xl ${className}`}>
+			<Card className={`w-full max-w-5xl border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(240,250,246,0.76))] text-slate-800 shadow-[0_18px_45px_rgba(19,72,96,0.2)] backdrop-blur-md ${className}`}>
 			<CardHeader>
 				<div className="flex items-center justify-between space-x-4">
 					<div className="flex items-center space-x-4">
@@ -190,7 +194,7 @@ export const SongCard: React.FC<SongProps> = ({
 							onClick={handlePlaybackToggle}
 							disabled={playbackLoading}
 							aria-label={isPlaying ? "Pause" : "Play"}
-							className="mr-4 w-16 h-16 min-w-[64px] min-h-[64px] max-w-[64px] max-h-[64px] p-0 overflow-hidden relative"
+							className={`relative mr-4 h-16 w-16 max-h-[64px] max-w-[64px] min-h-[64px] min-w-[64px] overflow-hidden p-0 ${primaryPillButton}`}
 							style={album_pic_url ? { backgroundImage: `url('${album_pic_url}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
 						>
 							{/* Overlay for icon visibility */}
@@ -211,11 +215,11 @@ export const SongCard: React.FC<SongProps> = ({
 							</span>
 						</Button>
 						<div>
-							<CardTitle>{name}</CardTitle>
-							<CardDescription>
+							<CardTitle className="text-[1rem] font-bold leading-none text-[#195f5c]">{name}</CardTitle>
+							<CardDescription className="mt-2 text-[.875rem] text-[#3b5f66]">
 								<div>{artists}</div>
 								<div>
-									<b>{album}</b>
+									<b className="text-[#285e59]">{album}</b>
 								</div>
 							</CardDescription>
 						</div>
@@ -224,8 +228,8 @@ export const SongCard: React.FC<SongProps> = ({
 						<DialogTrigger asChild>
 							<Button
 								size="sm"
-								className="ml-2 whitespace-nowrap w-28 h-10 min-w-[112px] min-h-[40px] max-w-[112px] max-h-[40px] bg-[#1DB954] text-black hover:bg-[#1ed760]">
-								Add to playlists
+								className={`ml-2 h-10 max-h-[40px] max-w-[150px] min-h-[40px] min-w-[150px] whitespace-nowrap px-3 text-xs font-semibold ${primaryPillButton}`}>
+								add to playlists
 							</Button>
 						</DialogTrigger>
 						<DialogContent className="max-h-[80vh] overflow-hidden">
@@ -238,31 +242,15 @@ export const SongCard: React.FC<SongProps> = ({
 							<DialogFooter className="flex justify-center w-full">
 								<Button
 									onClick={addSongToPlaylists}
-									className="w-28 h-10 min-w-[112px] min-h-[40px] max-w-[112px] max-h-[40px] bg-[#1DB954] text-black hover:bg-[#1ed760]"
+									className={`h-10 max-h-[40px] max-w-[170px] min-h-[40px] min-w-[170px] text-base font-semibold ${mutedPillButton}`}
 								>
-									Add to Playlists
+									add
 								</Button>
 							</DialogFooter>
 						</DialogContent>
 					</Dialog>
 				</div>
 			</CardHeader>
-			{/* {description && (
-				<CardContent>
-					<p>{description}</p>
-				</CardContent>
-			)} */}
-			{/* <CardFooter className="justify-between"> */}
-				{/* {duration && <span className="text-xs text-muted-foreground">{duration}</span>}
-				{onPlay && (
-					<button
-						onClick={onPlay}
-						className="px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
-					>
-						Play
-					</button>
-				)} */}
-			{/* </CardFooter> */}
 		</Card>
 	)
 }

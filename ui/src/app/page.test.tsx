@@ -15,12 +15,12 @@ describe("Landing page", () => {
 
   it("routes to organize from categorize button", () => {
     render(<Landing />);
-    fireEvent.click(screen.getByRole("button", { name: "Categorize Songs" }));
+    fireEvent.click(screen.getByRole("button", { name: "categorize songs" }));
     expect(pushMock).toHaveBeenCalledWith("/organize");
   });
 
-  it("renders yeety button", () => {
+  it("renders coming soon button", () => {
     render(<Landing />);
-    expect(screen.getByRole("button", { name: "yeety!" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "coming soon..." })).toBeInTheDocument();
   });
 });
