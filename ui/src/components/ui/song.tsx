@@ -173,7 +173,7 @@ export const SongCard: React.FC<SongProps> = ({
 					alert('Failed to stop playback.');
 				}
 			}
-		} catch (_error) {
+		} catch {
 			alert('An error occurred while toggling playback.');
 		} finally {
 			setPlaybackLoading(false);
