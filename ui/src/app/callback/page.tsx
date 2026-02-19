@@ -15,11 +15,11 @@ const getTokenExpiration = async (code: string) => {
   return data.expires_in
 }
 
-const CallbackPage = async ({searchParams}) => {
+const CallbackPage = async ({ searchParams }: { searchParams: Promise<{ code?: string; state?: string }> }) => {
   const params = await searchParams;
   const code = params.code;
   const state = params.state;
-  const expires_in = await getTokenExpiration(code)
+  const expires_in = await getTokenExpiration(code ?? '')
   return (
     <div>
       <ClientComponent token_expires_in={expires_in} state={state}/>
