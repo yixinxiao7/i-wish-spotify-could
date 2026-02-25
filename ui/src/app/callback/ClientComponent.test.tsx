@@ -29,6 +29,18 @@ describe("Callback client component", () => {
     expect(screen.getByText("Loading...")).toBeInTheDocument();
   });
 
+  it("remains stable under React.StrictMode double effects", async () => {
+    sessionStorage.setItem("oauth_state", "expected-state");
+    render(
+      <React.StrictMode>
+        <ClientComponent token_expires_in={3600} state="expected-state" />
+      </React.StrictMode>
+    );
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/"));
+    expect(pushMock).not.toHaveBeenCalledWith("/login");
+  });
+
   it("redirects to login when token expiry is absent", async () => {
     sessionStorage.setItem("oauth_state", "expected-state");
     render(<ClientComponent token_expires_in={undefined} state="expected-state" />);

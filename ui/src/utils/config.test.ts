@@ -10,8 +10,8 @@ describe("config", () => {
 
     expect(config.AUTHORIZE_ENDPOINT).toBe("https://accounts.spotify.com/authorize");
     expect(config.REDIRECT_URL).toBe("http://localhost:3000/callback");
-    expect(config.POST_TOKEN_ENDPOINT).toBe("http://localhost:8000/api/oauth");
-    expect(config.GET_SONGS_ENDPOINT).toBe("http://localhost:8000/api/songs");
+    expect(config.POST_TOKEN_ENDPOINT).toBe("http://localhost:8000/api/oauth/");
+    expect(config.GET_SONGS_ENDPOINT).toBe("http://localhost:8000/api/songs/");
     expect(config.PUT_STOP_PLAYBACK_ENDPOINT).toBe("http://localhost:8000/api/playback/stop");
     expect(config.SCOPES).toContain("user-library-read");
   });

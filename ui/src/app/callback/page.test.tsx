@@ -28,7 +28,7 @@ describe("Callback page", () => {
     });
     render(element);
 
-    expect(global.fetch).toHaveBeenCalledWith("http://localhost:8000/api/oauth", {
+    expect(global.fetch).toHaveBeenCalledWith("http://localhost:8000/api/oauth/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
