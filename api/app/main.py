@@ -31,6 +31,6 @@ app.include_router(playback.router, prefix="/api/playback", tags=["Playback"])
 def read_root():
     return {"message": "Welcome to the FastAPI application!"}
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
     return {"status": "ok"}
