@@ -90,3 +90,4 @@ cd api && python3 -m pytest
 - If `CONTEXT.md` and code disagree, trust the code
 - Runtime JSON files are local state, not feature output — treat accordingly
 - Make sure to test all new/updated code for edge cases. Aim for at least 90% code coverage whereever possible.
+- **Architecture diagram**: When any change affects the system architecture — new/removed/renamed endpoints, services, routers, pages, external integrations, deployment targets, or data flow — update `architecture.svg` at the project root to reflect the current state. The SVG is hand-authored inline XML; edit it directly (no build tools needed).
