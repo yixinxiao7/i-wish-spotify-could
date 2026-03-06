@@ -22,7 +22,8 @@ const Login: React.FC = () => {
       '&response_type=code' +
       `&redirect_uri=${encodeURIComponent(redirect_url)}` +
       `&state=${state}` +
-      `&scope=${scopes_url_params}`;
+      `&scope=${scopes_url_params}` +
+      '&show_dialog=true';
     window.location.href = authUrl;
   };
 

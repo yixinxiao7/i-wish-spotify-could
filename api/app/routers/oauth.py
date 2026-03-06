@@ -56,6 +56,12 @@ def set_token(code: Code):
     token_data = response.json()
     token_data["expires_at"] = int(time.time()) + token_data["expires_in"]
 
+    # Invalidate the uncategorized-songs cache so it is rebuilt with
+    # current playlist data on the next request.
+    cache_path = "all_uncategorized_songs.json"
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+
     # TODO: change to token manager like redis
     with open("token.json", "w") as f:
         json.dump(token_data, f)

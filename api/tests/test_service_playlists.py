@@ -24,10 +24,10 @@ def test_get_created_playlists_fetches_paginates_and_caches_user(monkeypatch):
         {"id": "p51", "name": "P51", "owner": {"id": "me"}, "images": []},
     ]
 
-    def fake_get(url, headers=None, params=None):
-        if params["offset"] == 0:
-            return DummyResponse(200, {"items": page1_items})
-        return DummyResponse(200, {"items": page2_items})
+    def fake_get(url, **kwargs):
+        if "offset" not in url or "offset=0" in url:
+            return DummyResponse(200, {"items": page1_items, "next": "https://api.spotify.com/v1/me/playlists?offset=50&limit=50"})
+        return DummyResponse(200, {"items": page2_items, "next": None})
 
     monkeypatch.setattr(playlists_service.requests, "get", fake_get)
     monkeypatch.setattr(playlists_service, "get_current_user_id", lambda token: "me")
@@ -55,7 +55,8 @@ def test_get_created_playlists_uses_existing_user_cache(monkeypatch):
                 "items": [
                     {"id": "p1", "name": "P1", "owner": {"id": "me"}, "images": []},
                     {"id": "p2", "name": "P2", "owner": {"id": "other"}, "images": []},
-                ]
+                ],
+                "next": None,
             },
         ),
     )
@@ -75,7 +76,7 @@ def test_get_created_playlists_error(monkeypatch):
     monkeypatch.setattr(
         playlists_service.requests,
         "get",
-        lambda *args, **kwargs: DummyResponse(500, {"error": "bad"}),
+        lambda *args, **kwargs: DummyResponse(500, {"error": "bad", "next": None}),
     )
     with pytest.raises(Exception, match="Error: 500"):
         playlists_service.get_created_playlists("token")
@@ -85,10 +86,10 @@ def test_get_playlist_songs_paginates(monkeypatch):
     first_page = [{"track": {"id": str(i)}} for i in range(100)]
     second_page = [{"track": {"id": "extra"}}]
 
-    def fake_get(url, headers=None, params=None):
-        if params["offset"] == 0:
-            return DummyResponse(200, {"items": first_page})
-        return DummyResponse(200, {"items": second_page})
+    def fake_get(url, **kwargs):
+        if "offset" not in url or "offset=0" in url:
+            return DummyResponse(200, {"items": first_page, "next": "https://api.spotify.com/v1/playlists/playlist-1/tracks?offset=100&limit=100"})
+        return DummyResponse(200, {"items": second_page, "next": None})
 
     monkeypatch.setattr(playlists_service.requests, "get", fake_get)
     songs = playlists_service.get_playlist_songs("token", "playlist-1")
@@ -99,7 +100,7 @@ def test_get_playlist_songs_error(monkeypatch):
     monkeypatch.setattr(
         playlists_service.requests,
         "get",
-        lambda *args, **kwargs: DummyResponse(400, {"error": "bad"}),
+        lambda *args, **kwargs: DummyResponse(400, {"error": "bad", "next": None}),
     )
     with pytest.raises(Exception, match="Error: 400"):
         playlists_service.get_playlist_songs("token", "playlist-1")

@@ -2,6 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 
+interface PageToast {
+  message: string;
+  type: 'success' | 'error';
+}
+
 import {
   GET_TOTAL_SONGS_ENDPOINT,
   GET_SONGS_ENDPOINT,
@@ -43,6 +48,7 @@ const SongsPage: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [offset, setOffset] = useState<number>(0);
     const [limit, setLimit] = useState<number>(10);
+    const [pageToast, setPageToast] = useState<PageToast | null>(null);
 
     useEffect(() => {
         fetchPlaylists();  
@@ -134,6 +140,7 @@ const SongsPage: React.FC = () => {
             album_pic_url={song.album_pic_url}
             allPlaylists={playlists}
             onRefresh={refreshSongs}
+            onSuccess={(msg) => setPageToast({ message: msg, type: 'success' })}
             className="w-2/5"
           />
         ));
@@ -174,20 +181,42 @@ const SongsPage: React.FC = () => {
       fetchSongs(offset, newLimit);
     }
 
-    if (loading) {
-      return (
-        <div className="flex w-full flex-1 items-center justify-center py-10">
-          <svg className="animate-spin h-8 w-8 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
-      );
-    }
-
     return (
       <div key="songs" className="flex w-full flex-1 flex-col items-center justify-start px-4 py-10">
-  <h1 className="mb-8 text-center text-4xl font-bold tracking-tight text-gray-900 drop-shadow-sm">uncategorized songs</h1>
+
+        {/* Page-level toast — lives outside the loading branch so it survives refresh cycles */}
+        {pageToast && (
+          <div
+            role="status"
+            className={`fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-2xl border px-5 py-3 shadow-xl backdrop-blur-md ${
+              pageToast.type === 'success'
+                ? 'border-emerald-300/60 bg-[linear-gradient(135deg,rgba(220,255,235,0.95),rgba(200,248,220,0.95))] text-emerald-800'
+                : 'border-red-300/60 bg-[linear-gradient(135deg,rgba(255,225,225,0.95),rgba(255,200,200,0.95))] text-red-800'
+            }`}
+          >
+            <span className="text-sm font-medium">{pageToast.message}</span>
+            <button
+              onClick={() => setPageToast(null)}
+              aria-label="Dismiss notification"
+              className="ml-1 rounded-full p-0.5 hover:bg-black/10 transition"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex w-full flex-1 items-center justify-center py-10">
+            <svg className="animate-spin h-8 w-8 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </div>
+        ) : (
+          <>
+        <h1 className="mb-8 text-center text-4xl font-bold tracking-tight text-gray-900 drop-shadow-sm">uncategorized songs</h1>
         <div className="flex flex-col items-center w-full gap-6">
           {renderSongs()}
         </div>
@@ -273,6 +302,8 @@ const SongsPage: React.FC = () => {
             </Pagination>
           }
         </div>
+          </>
+        )}
       </div>
     )
 }

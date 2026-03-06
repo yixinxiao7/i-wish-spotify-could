@@ -4,9 +4,46 @@ import concurrent.futures
 from app.services.users_services import get_current_user_id
 from app.services.http_client import spotify_get, spotify_post
 
-def get_created_playlists(access_token: str):
+
+def _fetch_all_playlists(access_token: str):
     '''
-    Get all playlists created by the current user
+    Fetch every playlist that appears in the current user's Spotify library
+    (both owned and followed).  Pagination is handled internally.
+    Args:
+        access_token (str): Spotify access token
+    Returns:
+        list of dicts with keys: id, name, owner_id, playlist_image_url
+    '''
+    url = "https://api.spotify.com/v1/me/playlists?limit=50"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    all_playlists = []
+
+    while url:
+        response = spotify_get(url, headers=headers)
+        if response.status_code != 200:
+            raise Exception(f"Error: {response.status_code} - {response.text}")
+        data = response.json()
+        all_playlists.extend(
+            [
+                {
+                    "id": playlist["id"],
+                    "name": playlist["name"],
+                    "owner_id": playlist["owner"]["id"],
+                    "playlist_image_url": playlist["images"][0]["url"] if playlist["images"] else None,
+                }
+                for playlist in data["items"]
+            ]
+        )
+        url = data.get("next")
+
+    return all_playlists
+
+
+def get_all_library_playlists(access_token: str):
+    '''
+    Get every playlist in the user's Spotify library — both playlists they
+    own and playlists they follow.  Used when building the uncategorized-songs
+    cache so that songs in any library playlist are excluded.
     Args:
         access_token (str): Spotify access token
     Returns:
@@ -18,32 +55,26 @@ def get_created_playlists(access_token: str):
             "playlist_image_url": str | None
         }
     '''
-    url = "https://api.spotify.com/v1/me/playlists"
-    headers = {"Authorization": f"Bearer {access_token}"}
-    all_playlists = []
-    offset = 0
-    limit = 50
+    return _fetch_all_playlists(access_token)
 
-    while True:
-        response = spotify_get(url, headers=headers, params={"offset": offset, "limit": limit})
-        if response.status_code != 200:
-            raise Exception(f"Error: {response.status_code} - {response.text}")
-        data = response.json()
-        all_playlists.extend(
-            [
-                {
-                    "id": playlist["id"],
-                    "name": playlist["name"],
-                    "owner_id": playlist["owner"]["id"],
-                    "playlist_image_url": playlist["images"][0]["url"] if playlist["images"] else None,
 
-                } 
-                for playlist in data["items"]
-            ]
-        )
-        if len(data["items"]) < limit:
-            break
-        offset += limit
+def get_created_playlists(access_token: str):
+    '''
+    Get all playlists owned (created) by the current user.
+    Used for the add-to-playlist UI — users can only add songs to playlists
+    they own.
+    Args:
+        access_token (str): Spotify access token
+    Returns:
+        list: List of playlists
+        {
+            "id": str,
+            "name": str,
+            "owner_id": str,
+            "playlist_image_url": str | None
+        }
+    '''
+    all_playlists = _fetch_all_playlists(access_token)
 
     # TODO: add to cache
     # get user id from user_id.json file if it exists
@@ -57,7 +88,7 @@ def get_created_playlists(access_token: str):
             f.write(json.dumps({'id': current_user_id}))
 
     playlists = [
-        playlist for playlist in all_playlists 
+        playlist for playlist in all_playlists
         if playlist["owner_id"] == current_user_id
     ]
     return playlists
@@ -81,23 +112,25 @@ def get_playlist_songs(access_token: str, playlist_id: str):
             ...
         }
     '''
-    url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+    url = f"https://api.spotify.com/v1/playlists/{playlist_id}/items?limit=100"
     headers = {"Authorization": f"Bearer {access_token}"}
     all_songs = []
-    offset = 0
-    limit = 100
 
-    while True:
-        response = spotify_get(url, headers=headers, params={"offset": offset, "limit": limit})
+    while url:
+        response = spotify_get(url, headers=headers)
         if response.status_code == 403:
             raise PermissionError(f"403 Forbidden for playlist {playlist_id}: {response.text}")
         if response.status_code != 200:
             raise Exception(f"Error: {response.status_code} - {response.text}")
         data = response.json()
-        all_songs.extend(data["items"])
-        if len(data["items"]) < limit:
-            break
-        offset += limit
+        for raw_item in data["items"]:
+            # The /items endpoint returns the track/episode object under
+            # the 'item' key instead of 'track'.  Normalise so downstream
+            # code can consistently use item['track'].
+            if "track" not in raw_item and "item" in raw_item:
+                raw_item["track"] = raw_item["item"]
+            all_songs.append(raw_item)
+        url = data.get("next")
 
     return all_songs
 
@@ -114,7 +147,7 @@ def add_song_to_playlists(access_token: str, song_id: str, playlist_ids: list):
     '''
     
     def add_song(playlist_id):
-        url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+        url = f"https://api.spotify.com/v1/playlists/{playlist_id}/items"
         headers = {"Authorization": f"Bearer {access_token}"}
         data = {"uris": [f"spotify:track:{song_id}"]}
         response = spotify_post(url, headers=headers, json=data)
@@ -129,4 +162,4 @@ def add_song_to_playlists(access_token: str, song_id: str, playlist_ids: list):
             future.result()
 
 
-__all__ = ["get_created_playlists", "get_playlist_songs", "add_song_to_playlists"]
+__all__ = ["get_all_library_playlists", "get_created_playlists", "get_playlist_songs", "add_song_to_playlists"]
