@@ -49,6 +49,17 @@ export default {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
+  			},
+  			brand: {
+  				heading: 'hsl(var(--brand-heading))',
+  				body: 'hsl(var(--brand-body))',
+  				muted: 'hsl(var(--brand-muted))',
+  				label: 'hsl(var(--brand-label))',
+  				green: 'hsl(var(--brand-green))',
+  				blue: 'hsl(var(--brand-blue))',
+  				'on-accent': 'hsl(var(--brand-on-accent))',
+  				'accent-border': 'hsl(var(--brand-accent-border))',
+  				footer: 'hsl(var(--brand-footer))',
   			}
   		},
   		borderRadius: {

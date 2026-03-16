@@ -16,10 +16,10 @@ describe("Pagination", () => {
       <Pagination>
         <PaginationContent>
           <PaginationItem>
-            <PaginationPrevious href="#" />
+            <PaginationPrevious />
           </PaginationItem>
           <PaginationItem>
-            <PaginationLink isActive href="#">
+            <PaginationLink isActive>
               1
             </PaginationLink>
           </PaginationItem>
@@ -27,7 +27,7 @@ describe("Pagination", () => {
             <PaginationEllipsis />
           </PaginationItem>
           <PaginationItem>
-            <PaginationNext href="#" />
+            <PaginationNext />
           </PaginationItem>
         </PaginationContent>
       </Pagination>

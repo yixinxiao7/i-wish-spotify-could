@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 
 interface PageToast {
   message: string;
@@ -39,6 +39,7 @@ import {
   SongCard
 } from "@/components/ui/song"
 
+const TOAST_DISMISS_MS = 5000;
 
 const SongsPage: React.FC = () => {
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -50,11 +51,22 @@ const SongsPage: React.FC = () => {
     const [limit, setLimit] = useState<number>(10);
     const [pageToast, setPageToast] = useState<PageToast | null>(null);
 
+    const showPageToast = useCallback((message: string, type: 'success' | 'error') => {
+      setPageToast({ message, type });
+    }, []);
+
+    // Auto-dismiss toast
     useEffect(() => {
-        fetchPlaylists();  
+      if (!pageToast) return;
+      const timer = setTimeout(() => setPageToast(null), TOAST_DISMISS_MS);
+      return () => clearTimeout(timer);
+    }, [pageToast]);
+
+    useEffect(() => {
+        fetchPlaylists();
         fetchTotalSongs();
         fetchSongs(offset, limit);
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchTotalSongs = async () => {
       try {
@@ -73,6 +85,7 @@ const SongsPage: React.FC = () => {
         }
       } catch (error) {
         console.error("Error fetching total songs:", error);
+        showPageToast("Failed to load song count. Please try refreshing.", 'error');
       }
     }
 
@@ -93,14 +106,14 @@ const SongsPage: React.FC = () => {
         }
       } catch (error) {
         console.error("Error fetching playlists:", error);
+        showPageToast("Failed to load playlists.", 'error');
       }
     }
 
-    const fetchSongs = async (offset: number, limit: number) => {
-      // construct urls
+    const fetchSongs = useCallback(async (fetchOffset: number, fetchLimit: number) => {
       const params = new URLSearchParams({
-        offset: String(offset),
-        limit: String(limit),
+        offset: String(fetchOffset),
+        limit: String(fetchLimit),
       }).toString();
       const url = new URL(GET_SONGS_ENDPOINT);
       url.search = params;
@@ -121,50 +134,33 @@ const SongsPage: React.FC = () => {
         }
       } catch (error) {
         console.error("Error fetching songs:", error);
+        showPageToast("Failed to load songs. Please try refreshing.", 'error');
       } finally {
-        setOffset(offset);
-        setLimit(limit);
+        setOffset(fetchOffset);
+        setLimit(fetchLimit);
         setLoading(false);
       }
-    };
+    }, [showPageToast]);
 
-    const renderSongs = () => {
-      if (songs.length !== 0) {
-        return songs.map((song) => (
-          <SongCard
-            key={song.id}
-            id={song.id}
-            name={song.name}
-            artists={song.artists}
-            album={song.album}
-            album_pic_url={song.album_pic_url}
-            allPlaylists={playlists}
-            onRefresh={refreshSongs}
-            onSuccess={(msg) => setPageToast({ message: msg, type: 'success' })}
-            className="w-2/5"
-          />
-        ));
-      }
-    }
-
-    const refreshSongs = () => {
+    const refreshSongs = useCallback(() => {
       setLoading(true);
       fetchSongs(offset, limit);
-    }
+    }, [fetchSongs, offset, limit]);
 
-    const getLastPage = () => {
-      return Math.ceil(total / limit);
-    }
+    const handleSongSuccess = useCallback((msg: string) => {
+      showPageToast(msg, 'success');
+    }, [showPageToast]);
+
+    const lastPage = useMemo(() => Math.ceil(total / limit), [total, limit]);
 
     const handleOffsetChange = (newOffset: number, newPage: number) => {
       if (newOffset < 0) {
         newOffset = 0;
-      } 
+      }
       else if (newOffset > total) {
         newOffset -= limit;
       }
 
-      const lastPage = getLastPage();
       if (newPage < 1) {
         newPage = 1;
       }
@@ -175,7 +171,7 @@ const SongsPage: React.FC = () => {
       setCurrentPage(newPage);
       fetchSongs(newOffset, limit);
     }
-    
+
     const handleLimitChange = (newLimit: number) => {
       setLoading(true);
       fetchSongs(offset, newLimit);
@@ -188,17 +184,19 @@ const SongsPage: React.FC = () => {
         {pageToast && (
           <div
             role="status"
-            className={`fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-2xl border px-5 py-3 shadow-xl backdrop-blur-md ${
+            aria-live="polite"
+            aria-atomic="true"
+            className={`fixed bottom-5 left-5 right-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 shadow-md sm:left-auto ${
               pageToast.type === 'success'
-                ? 'border-emerald-300/60 bg-[linear-gradient(135deg,rgba(220,255,235,0.95),rgba(200,248,220,0.95))] text-emerald-800'
-                : 'border-red-300/60 bg-[linear-gradient(135deg,rgba(255,225,225,0.95),rgba(255,200,200,0.95))] text-red-800'
+                ? 'toast-success'
+                : 'toast-error'
             }`}
           >
             <span className="text-sm font-medium">{pageToast.message}</span>
             <button
               onClick={() => setPageToast(null)}
               aria-label="Dismiss notification"
-              className="ml-1 rounded-full p-0.5 hover:bg-black/10 transition"
+              className="ml-1 flex-shrink-0 rounded-full p-2 hover:bg-foreground/10 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
@@ -208,17 +206,37 @@ const SongsPage: React.FC = () => {
         )}
 
         {loading ? (
-          <div className="flex w-full flex-1 items-center justify-center py-10">
-            <svg className="animate-spin h-8 w-8 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <div className="flex w-full flex-1 items-center justify-center py-10" role="status" aria-label="Loading songs">
+            <svg className="animate-spin h-8 w-8 text-brand-muted motion-reduce:hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
+            <span className="sr-only">Loading songs…</span>
           </div>
         ) : (
           <>
-        <h1 className="mb-8 text-center text-4xl font-bold tracking-tight text-gray-900 drop-shadow-sm">uncategorized songs</h1>
+        <h1 className="mb-6 text-center text-2xl font-bold tracking-tight text-brand-heading sm:mb-8 sm:text-4xl">uncategorized songs</h1>
         <div className="flex flex-col items-center w-full gap-6">
-          {renderSongs()}
+          {songs.length === 0 ? (
+            <p className="py-10 text-center text-brand-muted">
+              No uncategorized songs found. All your liked songs are already in playlists!
+            </p>
+          ) : (
+            songs.map((song) => (
+              <SongCard
+                key={song.id}
+                id={song.id}
+                name={song.name}
+                artists={song.artists}
+                album={song.album}
+                album_pic_url={song.album_pic_url}
+                allPlaylists={playlists}
+                onRefresh={refreshSongs}
+                onSuccess={handleSongSuccess}
+                className="w-full md:w-3/5 lg:w-2/5"
+              />
+            ))
+          )}
         </div>
         <div className="mt-8 flex flex-col items-center w-full gap-4">
           <Select onValueChange={(value) => handleLimitChange(Number(value))}>
@@ -237,7 +255,7 @@ const SongsPage: React.FC = () => {
           {total > 0 &&
               <Pagination className="px-6 py-2">
               <PaginationContent>
-                {currentPage != 1 && 
+                {currentPage != 1 &&
                   <>
                     <PaginationItem>
                       <PaginationPrevious onClick={() => {
@@ -262,14 +280,14 @@ const SongsPage: React.FC = () => {
                         {currentPage-1}
                       </PaginationLink>
                     </PaginationItem>
-                  </>         
+                  </>
                 }
                   <PaginationItem>
                     <PaginationLink isActive={true}>
                       {currentPage}
                     </PaginationLink>
                   </PaginationItem>
-                {currentPage < getLastPage()-1 &&
+                {currentPage < lastPage-1 &&
                   <>
                     <PaginationItem>
                       <PaginationLink onClick={() =>
@@ -282,13 +300,13 @@ const SongsPage: React.FC = () => {
                     </PaginationItem>
                   </>
                 }
-                {currentPage != getLastPage() &&
+                {currentPage != lastPage &&
                   <>
                     <PaginationItem>
                       <PaginationLink onClick={() => {
-                          handleOffsetChange((getLastPage()-1)*limit, getLastPage());
+                          handleOffsetChange((lastPage-1)*limit, lastPage);
                         }}>
-                          {getLastPage()}
+                          {lastPage}
                       </PaginationLink>
                     </PaginationItem>
                     <PaginationItem>

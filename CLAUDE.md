@@ -91,3 +91,29 @@ cd api && python3 -m pytest
 - Runtime JSON files are local state, not feature output — treat accordingly
 - Make sure to test all new/updated code for edge cases. Aim for at least 90% code coverage whereever possible.
 - **Architecture diagram**: When any change affects the system architecture — new/removed/renamed endpoints, services, routers, pages, external integrations, deployment targets, or data flow — update `architecture.svg` at the project root to reflect the current state. The SVG is hand-authored inline XML; edit it directly (no build tools needed).
+
+## Design Context
+
+### Users
+Spotify power users who have accumulated many liked songs that aren't organized into playlists. They care about their music library and want a fast, satisfying way to triage uncategorized tracks. They use this tool in focused sessions — browsing, previewing, and sorting songs one by one.
+
+### Brand Personality
+**Bold, expressive, vibrant.** The app is an extension of the Spotify ecosystem — it should feel native to that world while adding its own character. Confident and colorful, not corporate.
+
+### Emotional Goals
+- **Satisfaction & control**: The core feeling of finally getting a messy library organized. Every categorization action should feel decisive and rewarding.
+- **Delight & discovery**: Browsing uncategorized songs resurfaces forgotten music. The interface should make this feel fun, not like a chore.
+
+### Aesthetic Direction
+- **Primary reference**: Spotify itself — dark backgrounds, bold green accents, album-art-forward, high contrast
+- **Current approach**: Glassmorphism with green-to-blue gradients, frosted white cards, pill buttons — this works well for light mode and should be preserved there
+- **Theme**: Support both light and dark mode with a toggle. Dark mode should lean into Spotify's dark palette; light mode keeps the current airy glassmorphism
+- **Typography**: IBM Plex Mono throughout (already in place) — reinforces the technical/utility character
+- **Components**: shadcn/ui + Radix primitives, Tailwind CSS, lucide-react icons
+
+### Design Principles
+1. **Album art is the hero** — Let cover art drive visual interest. UI chrome should support, not compete with, album imagery.
+2. **Every action should feel satisfying** — Categorizing a song is the core loop. Use motion, color, and feedback to make it feel rewarding.
+3. **Spotify-native, not Spotify-clone** — Draw from Spotify's visual language (dark mode, green accents, bold type) but maintain independent identity through the glassmorphism style and gradient palette.
+4. **Fast and focused** — This is a utility tool. Keep interactions tight, minimize clicks, and never make the user wait without clear feedback.
+5. **Accessible by default** — Support reduced motion, maintain WCAG AA contrast ratios, and ensure keyboard navigability across both themes.

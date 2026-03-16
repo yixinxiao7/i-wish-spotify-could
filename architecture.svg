@@ -98,9 +98,9 @@
   <!-- Vercel triangle icon -->
   <polygon points="330,244 346,244 338,231" fill="white"/>
   <text x="354" y="240" font-size="12" font-weight="700" fill="white">Vercel</text>
-  <text x="354" y="253" font-size="9" fill="#a5b4fc">Next.js 15 · React 19 · TS</text>
+  <text x="354" y="253" font-size="9" fill="#a5b4fc">Next.js 15 · React 19 · TS · Tailwind</text>
   <text x="330" y="268" font-size="8.5" fill="#6366f1">Pages: / · /login · /callback · /organize</text>
-  <text x="330" y="280" font-size="8.5" fill="#6366f1">Components: SongCard · shadcn/ui</text>
+  <text x="330" y="280" font-size="8.5" fill="#6366f1">Components: SongCard · shadcn/ui · ThemeProvider</text>
   <text x="330" y="292" font-size="8.5" fill="#64748b">i-wish-spotify-could.yixinx.com</text>
 
   <!-- ─── RENDER (center-right) ─── -->
@@ -224,6 +224,6 @@
   <text x="612" y="632" font-size="11" fill="#94a3b8" font-weight="600">KEY BEHAVIORS</text>
   <text x="612" y="648" font-size="10.5" fill="#64748b">• File-based state: token.json, user_id.json, songs.json (single user)</text>
   <text x="612" y="664" font-size="10.5" fill="#64748b">• Token refresh buffer: 60s before expiry · tenacity retry on 429</text>
-  <text x="612" y="680" font-size="10.5" fill="#64748b">• Auth gating via sessionStorage.token_expiry in layout.tsx</text>
+  <text x="612" y="680" font-size="10.5" fill="#64748b">• Auth gating via sessionStorage · Dark/light theme via next-themes</text>
   <text x="612" y="696" font-size="10.5" fill="#64748b">• ThreadPoolExecutor(10) for parallel playlist song additions</text>
 </svg>

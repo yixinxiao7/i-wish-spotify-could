@@ -44,7 +44,33 @@ main {
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
+
+    /* Brand tokens */
+    --brand-heading: 177 58% 22%;
+    --brand-body: 188 32% 24%;
+    --brand-muted: 190 27% 32%;
+    --brand-label: 152 56% 28%;
+    --brand-green: 131 62% 53%;
+    --brand-blue: 198 88% 66%;
+    --brand-on-accent: 160 89% 11%;
+    --brand-accent-border: 198 55% 77%;
+    --brand-footer: 194 33% 93%;
+
+    /* Brand gradient tokens */
+    --brand-glass-bg: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(240,250,246,0.76));
+    --brand-glass-border: rgba(255,255,255,0.7);
+    --brand-glass-shadow: 0 18px 45px rgba(19,72,96,0.2);
+    --brand-auth-bg: linear-gradient(145deg, #c5efff 0%, #6cb4ef 50%, #6fdc94 100%);
+    --brand-btn-primary-border: rgba(255,255,255,0.9);
+    --brand-btn-muted-bg: linear-gradient(90deg, rgba(248,251,253,0.9), rgba(226,241,250,0.9));
+    --brand-toast-success-bg: rgba(210,250,225,0.95);
+    --brand-toast-error-bg: rgba(255,220,220,0.95);
+    --brand-toast-success-border: rgba(110,220,160,0.6);
+    --brand-toast-success-text: 152 69% 31%;
+    --brand-toast-error-border: rgba(252,165,165,0.6);
+    --brand-toast-error-text: 0 72% 51%;
   }
+
   .dark {
     --background: 20 14.3% 4.1%;
     --foreground: 60 9.1% 97.8%;
@@ -70,23 +96,94 @@ main {
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-  }
-}
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
+    /* Brand dark tokens */
+    --brand-heading: 170 45% 72%;
+    --brand-body: 180 20% 75%;
+    --brand-muted: 180 12% 55%;
+    --brand-label: 150 40% 55%;
+    --brand-green: 131 62% 53%;
+    --brand-blue: 198 88% 66%;
+    --brand-on-accent: 160 89% 11%;
+    --brand-accent-border: 198 30% 30%;
+    --brand-footer: 20 10% 8%;
 
-@layer base {
+    /* Brand dark gradient tokens */
+    --brand-glass-bg: linear-gradient(180deg, rgba(18,24,22,0.88), rgba(12,18,16,0.82));
+    --brand-glass-border: rgba(255,255,255,0.08);
+    --brand-glass-shadow: 0 18px 45px rgba(0,0,0,0.4);
+    --brand-auth-bg: linear-gradient(145deg, #0a1a1f 0%, #0d2420 30%, #0b1925 60%, #0d2115 100%);
+    --brand-btn-primary-border: rgba(255,255,255,0.2);
+    --brand-btn-muted-bg: linear-gradient(90deg, rgba(20,30,35,0.9), rgba(15,25,32,0.9));
+    --brand-toast-success-bg: rgba(10,40,25,0.95);
+    --brand-toast-error-bg: rgba(50,15,15,0.95);
+    --brand-toast-success-border: rgba(16,100,60,0.6);
+    --brand-toast-success-text: 150 40% 70%;
+    --brand-toast-error-border: rgba(150,50,50,0.6);
+    --brand-toast-error-text: 0 60% 75%;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Glass card surface */
+  .glass-surface {
+    background: var(--brand-glass-bg);
+    border: 1px solid var(--brand-glass-border);
+    box-shadow: var(--brand-glass-shadow);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Auth page gradient background */
+  .auth-bg {
+    background: var(--brand-auth-bg);
+  }
+
+  /* Primary gradient button (green to blue) */
+  .btn-brand-primary {
+    @apply rounded-full shadow-lg transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none;
+    background: linear-gradient(90deg, hsl(var(--brand-green)), hsl(var(--brand-blue)));
+    border: 1px solid var(--brand-btn-primary-border);
+    color: hsl(var(--brand-on-accent));
+  }
+
+  /* Muted / secondary brand button */
+  .btn-brand-muted {
+    @apply rounded-full shadow-lg transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none;
+    background: var(--brand-btn-muted-bg);
+    border: 1px solid hsl(var(--brand-accent-border));
+    color: hsl(var(--brand-body));
+  }
+
+  /* Toast variants */
+  .toast-success {
+    background: var(--brand-toast-success-bg);
+    border: 1px solid var(--brand-toast-success-border);
+    color: hsl(var(--brand-toast-success-text));
+  }
+
+  .toast-error {
+    background: var(--brand-toast-error-bg);
+    border: 1px solid var(--brand-toast-error-border);
+    color: hsl(var(--brand-toast-error-text));
+  }
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
