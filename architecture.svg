@@ -98,9 +98,9 @@
   <!-- Vercel triangle icon -->
   <polygon points="330,244 346,244 338,231" fill="white"/>
   <text x="354" y="240" font-size="12" font-weight="700" fill="white">Vercel</text>
-  <text x="354" y="253" font-size="9" fill="#a5b4fc">Next.js 15 · React 19 · TS · Tailwind</text>
+  <text x="354" y="253" font-size="9" fill="#a5b4fc">Next.js 15 · React 19 · TS</text>
   <text x="330" y="268" font-size="8.5" fill="#6366f1">Pages: / · /login · /callback · /organize</text>
-  <text x="330" y="280" font-size="8.5" fill="#6366f1">Components: SongCard · shadcn/ui · ThemeProvider</text>
+  <text x="330" y="280" font-size="8.5" fill="#6366f1">SongCard · shadcn/ui · ThemeProvider</text>
   <text x="330" y="292" font-size="8.5" fill="#64748b">i-wish-spotify-could.yixinx.com</text>
 
   <!-- ─── RENDER (center-right) ─── -->
@@ -113,10 +113,10 @@
   <line x1="630" y1="232" x2="658" y2="232" stroke="#38bdf8" stroke-width="1"/>
   <circle cx="652" cy="229" r="2" fill="#4ade80"/>
   <text x="666" y="237" font-size="12" font-weight="700" fill="white">Render</text>
-  <text x="666" y="250" font-size="9" fill="#7dd3fc">FastAPI 0.115 · Python 3 · Uvicorn</text>
-  <text x="640" y="265" font-size="8.5" fill="#0ea5e9">Routers: oauth · songs · playlists · playback</text>
-  <text x="640" y="277" font-size="8.5" fill="#0ea5e9">State: token.json · user_id.json · songs.json</text>
-  <text x="640" y="289" font-size="8.5" fill="#64748b">i-wish-spotify-could-api.onrender.com</text>
+  <text x="666" y="250" font-size="9" fill="#7dd3fc">FastAPI 0.115 · Python 3</text>
+  <text x="640" y="265" font-size="8.5" fill="#0ea5e9">oauth · songs · playlists · playback</text>
+  <text x="640" y="277" font-size="8.5" fill="#0ea5e9">token.json · user_id.json · songs.json</text>
+  <text x="640" y="289" font-size="8" fill="#64748b">i-wish-spotify-could-api.onrender.com</text>
   <text x="640" y="301" font-size="8.5" fill="#64748b">GET+HEAD /health · Free tier</text>
 
   <!-- ─── SPOTIFY API (bottom center) ─── -->
@@ -136,25 +136,25 @@
 
   <!-- ─── UPTIMEROBOT (right) ─── -->
   <g filter="url(#softShadow)">
-    <rect x="930" y="200" width="190" height="90" rx="12" fill="url(#urGrad)" stroke="#f472b6" stroke-width="1.5"/>
+    <rect x="920" y="200" width="210" height="90" rx="12" fill="url(#urGrad)" stroke="#f472b6" stroke-width="1.5"/>
   </g>
-  <text x="950" y="222" font-size="11" fill="#f472b6" font-weight="600" letter-spacing="1">MONITORING</text>
+  <text x="940" y="222" font-size="11" fill="#f472b6" font-weight="600" letter-spacing="1">MONITORING</text>
   <!-- Pulse/heartbeat icon -->
-  <polyline points="950,244 958,244 961,235 966,254 971,238 975,244 983,244" stroke="#f472b6" stroke-width="1.8" fill="none"/>
-  <text x="992" y="240" font-size="12" font-weight="700" fill="#f9a8d4">UptimeRobot</text>
-  <text x="992" y="253" font-size="9" fill="#ec4899">HEAD /health · every 5 min</text>
-  <text x="950" y="270" font-size="8.5" fill="#9d174d">Prevents Render free-tier spin-down</text>
-  <text x="950" y="282" font-size="8.5" fill="#9d174d">Alerts via email on downtime</text>
+  <polyline points="940,244 948,244 951,235 956,254 961,238 965,244 973,244" stroke="#f472b6" stroke-width="1.8" fill="none"/>
+  <text x="980" y="240" font-size="12" font-weight="700" fill="#f9a8d4">UptimeRobot</text>
+  <text x="980" y="253" font-size="9" fill="#ec4899">HEAD /health · every 5 min</text>
+  <text x="940" y="270" font-size="8.5" fill="#9d174d">Prevents Render free-tier spin-down</text>
+  <text x="940" y="282" font-size="8.5" fill="#9d174d">Alerts via email on downtime</text>
 
   <!-- ─── GITHUB (bottom-right) ─── -->
   <g filter="url(#softShadow)">
-    <rect x="900" y="380" width="190" height="68" rx="12" fill="#1a1f2e" stroke="#475569" stroke-width="1.5"/>
+    <rect x="900" y="380" width="210" height="68" rx="12" fill="#1a1f2e" stroke="#475569" stroke-width="1.5"/>
   </g>
   <text x="920" y="402" font-size="11" fill="#94a3b8" font-weight="600" letter-spacing="1">SOURCE</text>
   <circle cx="936" cy="422" r="11" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="954" y="418" font-size="12" font-weight="700" fill="white">GitHub</text>
-  <text x="954" y="431" font-size="8.5" fill="#64748b">yixinxiao7/i-wish-spotify-could</text>
-  <text x="920" y="443" font-size="8.5" fill="#475569">main → auto-deploy to Render</text>
+  <text x="954" y="431" font-size="8" fill="#64748b">yixinxiao7/i-wish-spotify-could</text>
+  <text x="920" y="443" font-size="8.5" fill="#475569">main → auto-deploy</text>
 
   <!-- ═══════════ ARROWS ═══════════ -->
 
@@ -171,31 +171,31 @@
   <text x="530" y="180" font-size="9.5" fill="#818cf8">HTTPS</text>
 
   <!-- Vercel (frontend) ↔ Render (backend) API calls -->
-  <line x1="530" y1="249" x2="618" y2="249" stroke="#60a5fa" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#arrowBlue)" marker-start="url(#arrowBlueBack)"/>
+  <line x1="534" y1="249" x2="614" y2="249" stroke="#60a5fa" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#arrowBlue)" marker-start="url(#arrowBlueBack)"/>
   <text x="554" y="241" font-size="9.5" fill="#60a5fa">REST API</text>
   <text x="562" y="265" font-size="9" fill="#60a5fa">/api/*</text>
 
   <!-- Render ↔ Spotify API -->
-  <line x1="720" y1="317" x2="700" y2="440" stroke="#22c55e" stroke-width="1.8" marker-end="url(#arrowGreen)" marker-start="url(#arrowBlueBack)"/>
-  <text x="722" y="395" font-size="9.5" fill="#22c55e">Spotify</text>
-  <text x="722" y="407" font-size="9.5" fill="#22c55e">API calls</text>
+  <line x1="718" y1="322" x2="702" y2="434" stroke="#22c55e" stroke-width="1.8" marker-end="url(#arrowGreen)" marker-start="url(#arrowBlueBack)"/>
+  <text x="722" y="390" font-size="9.5" fill="#22c55e">Spotify</text>
+  <text x="722" y="402" font-size="9.5" fill="#22c55e">API calls</text>
 
   <!-- Vercel → Spotify OAuth redirect -->
-  <line x1="440" y1="303" x2="510" y2="440" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
-  <text x="446" y="370" font-size="9.5" fill="#22c55e">OAuth</text>
-  <text x="446" y="382" font-size="9.5" fill="#22c55e">redirect</text>
+  <line x1="440" y1="308" x2="508" y2="434" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+  <text x="446" y="368" font-size="9.5" fill="#22c55e">OAuth</text>
+  <text x="446" y="380" font-size="9.5" fill="#22c55e">redirect</text>
 
   <!-- UptimeRobot → Render (HEAD /health) -->
-  <line x1="930" y1="248" x2="842" y2="248" stroke="#f472b6" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#arrowPink)"/>
-  <text x="866" y="241" font-size="9" fill="#f472b6">HEAD /health</text>
+  <line x1="920" y1="248" x2="848" y2="248" stroke="#f472b6" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#arrowPink)"/>
+  <text x="858" y="241" font-size="9" fill="#f472b6">HEAD /health</text>
 
   <!-- GitHub → Render (auto deploy) -->
-  <line x1="960" y1="380" x2="835" y2="317" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
-  <text x="900" y="338" font-size="9.5" fill="#94a3b8">auto-deploy</text>
+  <line x1="960" y1="380" x2="840" y2="317" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
+  <text x="910" y="333" font-size="9.5" fill="#94a3b8">auto-deploy</text>
 
   <!-- GitHub → Vercel (auto deploy) -->
-  <line x1="900" y1="410" x2="525" y2="303" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
-  <text x="690" y="345" font-size="9.5" fill="#94a3b8">auto-deploy</text>
+  <line x1="900" y1="414" x2="530" y2="303" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
+  <text x="720" y="340" font-size="9.5" fill="#94a3b8">auto-deploy</text>
 
   <!-- ─── LEGEND ─── -->
   <rect x="40" y="610" width="420" height="92" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1"/>
