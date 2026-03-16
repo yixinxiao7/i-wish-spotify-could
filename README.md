@@ -6,6 +6,12 @@ Browse your liked songs that aren't in any playlist, preview them with in-app Sp
 
 ---
 
+## Architecture
+
+![System Architecture](architecture.svg)
+
+---
+
 ## Stack
 
 | Layer | Technology |
