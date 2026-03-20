@@ -1,5 +1,7 @@
 # i-wish-spotify-could
 
+> **Access Notice:** This app uses the Spotify Web API in [Development Mode](https://developer.spotify.com/documentation/web-api/concepts/quota-modes), which restricts access to users explicitly added to the app's allowlist. If you'd like access, send a request with your Spotify account email to **yixinxiao7@gmail.com** so you can be added.
+
 A personal Spotify utility web app for doing things Spotify's native UI doesn't support — currently: **categorizing uncategorized liked songs into playlists**.
 
 Browse your liked songs that aren't in any playlist, preview them with in-app Spotify playback, and assign them to one or more playlists — all in one view.
