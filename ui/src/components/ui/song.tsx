@@ -281,3 +281,5 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 		</>
 	)
 })
+
+SongCard.displayName = "SongCard"

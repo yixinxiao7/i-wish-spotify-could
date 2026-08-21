@@ -9,7 +9,7 @@ describe("Organize page — pin sharing across song cards", () => {
   const playlist = { id: "p1", name: "Road Trip", owner_id: "u1", pinned: false };
 
   beforeEach(() => {
-    global.fetch = jest.fn((input: URL | RequestInfo, init?: RequestInit) => {
+    global.fetch = jest.fn((input: URL | RequestInfo) => {
       const url = String(input);
       if (url.includes("/api/playlists/pin")) {
         return Promise.resolve({
