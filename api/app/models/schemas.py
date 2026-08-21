@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Code(BaseModel):
@@ -14,3 +14,7 @@ class SongPostData(BaseModel):
 
 class PlaybackModel(BaseModel):
     songId: str
+
+class PinPostData(BaseModel):
+    playlistId: str = Field(min_length=1)
+    pinned: bool

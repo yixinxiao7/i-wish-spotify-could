@@ -9,11 +9,12 @@ interface PageToast {
 
 import {
   GET_TOTAL_SONGS_ENDPOINT,
-  GET_SONGS_ENDPOINT,
-  GET_PLAYLISTS_ENDPOINT
+  GET_SONGS_ENDPOINT
 } from '@/utils/config';
 
-import { Song, Playlist } from '@/types/spotify';
+import { Song } from '@/types/spotify';
+
+import { PlaylistsProvider } from '@/components/playlists-provider';
 
 import {
   Pagination,
@@ -42,7 +43,6 @@ import {
 const TOAST_DISMISS_MS = 5000;
 
 const SongsPage: React.FC = () => {
-    const [playlists, setPlaylists] = useState<Playlist[]>([]);
     const [songs, setSongs] = useState<Song[]>([]);
     const [total, setTotal] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState<number>(1);
@@ -63,7 +63,6 @@ const SongsPage: React.FC = () => {
     }, [pageToast]);
 
     useEffect(() => {
-        fetchPlaylists();
         fetchTotalSongs();
         fetchSongs(offset, limit);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -86,27 +85,6 @@ const SongsPage: React.FC = () => {
       } catch (error) {
         console.error("Error fetching total songs:", error);
         showPageToast("Failed to load song count. Please try refreshing.", 'error');
-      }
-    }
-
-    const fetchPlaylists = async () => {
-      try {
-        const response = await fetch(GET_PLAYLISTS_ENDPOINT, {
-          method: "GET",
-          mode: 'cors',
-          headers: {
-            "Content-Type": "application/json"
-          },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setPlaylists(data.playlists);
-        } else {
-          throw new Error("Failed to fetch playlists");
-        }
-      } catch (error) {
-        console.error("Error fetching playlists:", error);
-        showPageToast("Failed to load playlists.", 'error');
       }
     }
 
@@ -178,6 +156,7 @@ const SongsPage: React.FC = () => {
     }
 
     return (
+      <PlaylistsProvider>
       <div key="songs" className="flex w-full flex-1 flex-col items-center justify-start px-4 py-10">
 
         {/* Page-level toast — lives outside the loading branch so it survives refresh cycles */}
@@ -233,7 +212,6 @@ const SongsPage: React.FC = () => {
                 artists={song.artists}
                 album={song.album}
                 album_pic_url={song.album_pic_url}
-                allPlaylists={playlists}
                 onRefresh={refreshSongs}
                 onSuccess={handleSongSuccess}
                 className="w-full md:w-3/5 lg:w-2/5"
@@ -326,6 +304,7 @@ const SongsPage: React.FC = () => {
           </>
         )}
       </div>
+      </PlaylistsProvider>
     )
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 
 import {
 	Card,
@@ -25,7 +25,9 @@ import {
 
 import { Button } from "./button"
 
-import { Checkbox } from "./checkbox"
+import { PlaylistList } from "./playlist-list"
+
+import { PlaylistsContext } from '@/components/playlists-provider';
 
 import { Playlist } from '@/types/spotify';
 
@@ -37,6 +39,7 @@ interface SongProps {
 	album_pic_url?: string
 	onRefresh: () => void
 	onSuccess?: (message: string) => void
+	/** Optional override; when omitted, playlists come from PlaylistsProvider. */
 	allPlaylists?: Playlist[]
 	className?: string
 }
@@ -56,13 +59,14 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 	album_pic_url,
 	onRefresh,
 	onSuccess,
-	allPlaylists = [],
+	allPlaylists,
 	className = ""
 }) => {
 	const [selectedPlaylists, setSelectedPlaylists] = useState<Playlist[]>([]);
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [toast, setToast] = useState<Toast | null>(null);
 	const [addingToPlaylist, setAddingToPlaylist] = useState(false);
+	const playlistsContext = useContext(PlaylistsContext);
 
 	const showToast = useCallback((message: string, type: 'success' | 'error') => {
 		setToast({ message, type });
@@ -75,50 +79,23 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 		return () => clearTimeout(timer);
 	}, [toast]);
 
-	const updateSelectedPlaylists = (playlistId: string, checked: boolean | "indeterminate") => {
-		const playlist = allPlaylists.find((p) => p.id === playlistId);
-		if (!playlist) return;
+	// Surface pin failures on this song's toast, but only while its own
+	// dialog is open — otherwise every rendered SongCard would toast at once,
+	// since the pin error lives in shared provider state.
+	useEffect(() => {
+		if (dialogOpen && playlistsContext?.error) {
+			showToast(playlistsContext.error, 'error');
+		}
+	}, [dialogOpen, playlistsContext?.error, showToast]);
 
+	const updateSelectedPlaylists = (playlist: Playlist, checked: boolean) => {
 		setSelectedPlaylists((prev) => {
-			if (checked === true) {
+			if (checked) {
 				return [...prev, playlist];
 			} else {
-				return prev.filter((p) => p.id !== playlistId);
+				return prev.filter((p) => p.id !== playlist.id);
 			}
 		});
-	}
-
-	const renderPlaylists = () => {
-		if (!allPlaylists || allPlaylists.length === 0) {
-			return <p>No playlists available</p>;
-		}
-		return (
-			<>
-				{allPlaylists.map((playlist) => (
-					<li key={playlist.id} className="flex items-center space-x-3 py-2">
-						<img
-							src={playlist.playlist_image_url || '/default-playlist.png'}
-							alt={playlist.name}
-							width={44}
-							height={44}
-							loading="lazy"
-							decoding="async"
-							className="w-11 h-11 rounded-sm object-cover"
-						/>
-						<Checkbox
-							id={`playlist-${playlist.id}`}
-							onCheckedChange={(checked) => updateSelectedPlaylists(playlist.id, checked)}
-						/>
-						<label
-							htmlFor={`playlist-${playlist.id}`}
-							className="truncate"
-						>
-							{playlist.name}
-						</label>
-					</li>
-				))}
-			</>
-		);
 	}
 
 	const addSongToPlaylists = () => {
@@ -252,8 +229,14 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 							<DialogContent className="max-h-[80vh] overflow-hidden">
 								<DialogHeader>
 									<DialogTitle>Playlists</DialogTitle>
-									<DialogDescription className="max-h-[60vh] overflow-y-auto pr-4">
-										{renderPlaylists()}
+									<DialogDescription className="max-h-[60vh] overflow-y-auto pr-4" asChild>
+										<div>
+											<PlaylistList
+												playlists={allPlaylists}
+												selectedIds={new Set(selectedPlaylists.map((p) => p.id))}
+												onToggleSelect={updateSelectedPlaylists}
+											/>
+										</div>
 									</DialogDescription>
 								</DialogHeader>
 								<DialogFooter className="flex justify-center w-full">
@@ -298,3 +281,5 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 		</>
 	)
 })
+
+SongCard.displayName = "SongCard"

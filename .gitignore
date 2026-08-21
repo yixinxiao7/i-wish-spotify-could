@@ -221,3 +221,4 @@ cython_debug/
 .pypirc
 
 token.json
+pinned_playlists.json

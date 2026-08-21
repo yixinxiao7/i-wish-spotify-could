@@ -215,6 +215,22 @@ describe("SongCard", () => {
     expect(screen.getByText("No playlists available")).toBeInTheDocument();
   });
 
+  it("shows a pin toggle for each playlist in the add-to-playlist dialog", () => {
+    render(
+      <SongCard
+        id="song-1"
+        name="Song Name"
+        artists="Artist"
+        album="Album"
+        onRefresh={jest.fn()}
+        allPlaylists={[playlist]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "add to playlists" }));
+    expect(screen.getByRole("button", { name: "Pin My Playlist" })).toBeInTheDocument();
+  });
+
   it("dismisses toast when the X button is clicked", async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: false });
 
