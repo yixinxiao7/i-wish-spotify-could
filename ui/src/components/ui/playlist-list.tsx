@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useContext } from 'react';
+import { Pin } from "lucide-react"
 
 import { Checkbox } from "./checkbox"
 import { Playlist } from '@/types/spotify';
@@ -18,24 +19,6 @@ interface PlaylistListProps {
   onToggleSelect?: (playlist: Playlist, checked: boolean) => void;
   emptyMessage?: string;
 }
-
-const PinIcon: React.FC<{ pinned: boolean }> = ({ pinned }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 20 20"
-    fill={pinned ? "currentColor" : "none"}
-    stroke="currentColor"
-    strokeWidth={1.5}
-    className="h-4 w-4"
-    aria-hidden="true"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M9.5 2.5l8 8-3 1-3.5 5-1.5-1.5 1-4-4-4 1-3 2 1.5z"
-    />
-  </svg>
-);
 
 export const PlaylistList: React.FC<PlaylistListProps> = ({
   playlists: playlistsProp,
@@ -114,9 +97,17 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
               e.stopPropagation();
               handleTogglePin(playlist);
             }}
-            className="flex-shrink-0 rounded-full p-2 text-brand-muted transition hover:bg-foreground/10 hover:text-brand-heading focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            className={`flex-shrink-0 rounded-full p-2 transition hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-reduce:transition-none ${
+              playlist.pinned
+                ? "text-brand-green"
+                : "text-brand-muted hover:text-brand-heading"
+            }`}
           >
-            <PinIcon pinned={!!playlist.pinned} />
+            <Pin
+              className="h-4 w-4"
+              aria-hidden="true"
+              fill={playlist.pinned ? "currentColor" : "none"}
+            />
           </button>
         </li>
       ))}

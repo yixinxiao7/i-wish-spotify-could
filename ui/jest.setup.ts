@@ -36,12 +36,19 @@ jest.mock("next/font/google", () => ({
   IBM_Plex_Mono: () => ({ variable: "font-ibm-plex-mono", className: "font-ibm-plex-mono" }),
 }));
 
-jest.mock("lucide-react", () => ({
-  Check: () => null,
-  X: () => null,
-  ChevronLeft: () => null,
-  ChevronRight: () => null,
-  MoreHorizontal: () => null,
-  ChevronDown: () => null,
-  ChevronUp: () => null,
-}));
+// Stub every lucide icon. A hardcoded allow-list here means any newly used
+// icon resolves to undefined and fails with an opaque "Element type is
+// invalid", so resolve icon names dynamically instead.
+jest.mock("lucide-react", () => {
+  const iconStub = () => null;
+  return new Proxy(
+    {},
+    {
+      get: (_target, prop) => {
+        if (prop === "__esModule") return true;
+        if (typeof prop === "symbol") return undefined;
+        return iconStub;
+      },
+    }
+  );
+});
