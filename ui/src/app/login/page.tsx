@@ -1,11 +1,10 @@
 'use client';
 
-import React from 'react';
-import { SCOPES, AUTHORIZE_ENDPOINT, REDIRECT_URL } from '@/utils/config';
+import React, { useEffect } from 'react';
+import { SCOPES, AUTHORIZE_ENDPOINT, getRedirectUrl } from '@/utils/config';
 import { Button } from '@/components/ui/button';
 
 const client_id = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
-const redirect_url = String(REDIRECT_URL);
 const scopes_url_params = SCOPES.join('%20');
 
 const generateRandomString = (length = 16) => {
@@ -15,9 +14,23 @@ const generateRandomString = (length = 16) => {
 };
 
 const Login: React.FC = () => {
+  useEffect(() => {
+    // Spotify's OAuth redirect_uri validation only trusts the literal
+    // 127.0.0.1 over plain HTTP, never the "localhost" hostname (OAuth 2.0
+    // Security BCP loopback rule) — and there's no way to register
+    // "localhost" to work around it. Canonicalize before generating any
+    // state, so the whole login handshake happens on an origin Spotify can
+    // actually redirect back to.
+    if (window.location.hostname === 'localhost') {
+      window.location.replace(window.location.href.replace('//localhost', '//127.0.0.1'));
+    }
+  }, []);
+
   const handleLogin = () => {
     const state = generateRandomString();
+    const redirect_url = getRedirectUrl();
     sessionStorage.setItem('oauth_state', state);
+    sessionStorage.setItem('oauth_redirect_uri', redirect_url);
     const authUrl = `${AUTHORIZE_ENDPOINT}?client_id=${client_id}` +
       '&response_type=code' +
       `&redirect_uri=${encodeURIComponent(redirect_url)}` +

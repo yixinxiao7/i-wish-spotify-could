@@ -5,30 +5,35 @@ process.env.NEXT_PUBLIC_WEB_HOST = process.env.NEXT_PUBLIC_WEB_HOST ?? "http://l
 process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID =
   process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID ?? "test-client-id";
 
-global.ResizeObserver = class ResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-};
+// Guarded: this file also runs under the node test environment (e.g.
+// middleware tests, per-file `@jest-environment node`), where `window` and
+// `HTMLElement` are not defined.
+if (typeof window !== "undefined") {
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
 
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: jest.fn().mockImplementation((query) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: jest.fn().mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
 
-Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-  writable: true,
-  value: jest.fn(),
-});
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    writable: true,
+    value: jest.fn(),
+  });
+}
 
 jest.mock("next/font/google", () => ({
   Geist: () => ({ variable: "font-geist-sans" }),

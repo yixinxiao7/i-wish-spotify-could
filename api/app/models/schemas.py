@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 class Code(BaseModel):
     code: str
+    redirect_uri: str = Field(min_length=1)
 
 class Pagination(BaseModel):
     offset: int

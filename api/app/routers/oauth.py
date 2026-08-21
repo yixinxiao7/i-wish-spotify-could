@@ -20,6 +20,21 @@ SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
 router = APIRouter()
 
 
+def get_allowed_redirect_uris() -> list[str]:
+    """
+    Resolve the set of redirect URIs this server will accept in a token
+    exchange. Falls back to the single-URI SPOTIFY_REDIRECT_URI when
+    SPOTIFY_REDIRECT_URIS is unset, so existing single-origin deployments
+    keep working unchanged.
+    """
+    raw = os.getenv("SPOTIFY_REDIRECT_URIS")
+    if raw:
+        uris = [uri.strip() for uri in raw.split(",") if uri.strip()]
+        if uris:
+            return uris
+    return [SPOTIFY_REDIRECT_URI] if SPOTIFY_REDIRECT_URI else []
+
+
 @router.post("/")
 def set_token(code: Code):
     """
@@ -35,12 +50,18 @@ def set_token(code: Code):
     """
     if not code:
         raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    allowed_redirect_uris = get_allowed_redirect_uris()
+    if code.redirect_uri not in allowed_redirect_uris:
+        logger.error("Rejected redirect_uri not in allowlist: %s", code.redirect_uri)
+        raise HTTPException(status_code=400, detail="Invalid redirect_uri")
+
     token_url = "https://accounts.spotify.com/api/token"
 
     payload = {
         "grant_type": "authorization_code",
         "code": code.code,
-        "redirect_uri": SPOTIFY_REDIRECT_URI,
+        "redirect_uri": code.redirect_uri,
         "client_id": SPOTIFY_CLIENT_ID,
         "client_secret": SPOTIFY_CLIENT_SECRET,
     }
