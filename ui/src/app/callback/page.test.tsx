@@ -3,53 +3,37 @@ import { render, screen } from "@testing-library/react";
 
 jest.mock("./ClientComponent", () => ({
   __esModule: true,
-  default: ({ token_expires_in, state }: { token_expires_in?: number; state?: string }) => (
+  default: ({ code, state, error }: { code?: string; state?: string; error?: string }) => (
     <div data-testid="callback-client">
-      {String(token_expires_in)}|{state}
+      {String(code)}|{String(state)}|{String(error)}
     </div>
   ),
 }));
 
 describe("Callback page", () => {
-  beforeEach(() => {
-    process.env.NEXT_PUBLIC_SERVER_HOST = "http://localhost:8000";
+  it("forwards code, state, and error to the client component without fetching", async () => {
     global.fetch = jest.fn();
-  });
-
-  it("fetches token expiry and renders client component", async () => {
     const { default: CallbackPage } = await import("./page");
-    (global.fetch as jest.Mock).mockResolvedValue({
-      status: 200,
-      json: async () => ({ expires_in: 3600 }),
-    });
 
     const element = await CallbackPage({
       searchParams: Promise.resolve({ code: "code-1", state: "state-1" }),
     });
     render(element);
 
-    expect(global.fetch).toHaveBeenCalledWith("http://localhost:8000/api/oauth/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ code: "code-1" }),
-    });
-    expect(screen.getByTestId("callback-client")).toHaveTextContent("3600|state-1");
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(screen.getByTestId("callback-client")).toHaveTextContent("code-1|state-1|undefined");
   });
 
-  it("passes undefined expiry when oauth exchange fails", async () => {
+  it("forwards a provider error param", async () => {
     const { default: CallbackPage } = await import("./page");
-    (global.fetch as jest.Mock).mockResolvedValue({
-      status: 500,
-      json: async () => ({ message: "error" }),
-    });
 
     const element = await CallbackPage({
-      searchParams: Promise.resolve({ code: "code-2", state: "state-2" }),
+      searchParams: Promise.resolve({ error: "access_denied" }),
     });
     render(element);
 
-    expect(screen.getByTestId("callback-client")).toHaveTextContent("undefined|state-2");
+    expect(screen.getByTestId("callback-client")).toHaveTextContent(
+      "undefined|undefined|access_denied"
+    );
   });
 });

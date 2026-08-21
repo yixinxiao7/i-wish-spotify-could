@@ -60,6 +60,7 @@ Backend app entry: `api/app/main.py`
 
 ## Routes (effective paths)
 1. `POST /api/oauth/`
+- Body: `{ code, redirect_uri }`. Rejects `redirect_uri` not present in the server allowlist (`SPOTIFY_REDIRECT_URIS`, falling back to `SPOTIFY_REDIRECT_URI`) with HTTP 400.
 - Exchanges authorization code for token and writes `token.json`.
 2. `DELETE /api/oauth/logout`
 - Deletes any of: `token.json`, `user_id.json`, `all_uncategorized_songs.json`.
@@ -94,14 +95,18 @@ Notable endpoints include trailing slashes for some routes:
 
 ## Auth behavior
 - `/login`:
-1. Generates state with `crypto.getRandomValues`.
-2. Stores `oauth_state` in `sessionStorage`.
-3. Redirects to Spotify authorize URL.
+1. On mount, if `window.location.hostname === "localhost"`, redirects (`window.location.replace`) to the equivalent `127.0.0.1` origin before anything else runs. Spotify rejects `http://localhost:<port>/callback` as a redirect URI outright (OAuth 2.0 Security BCP loopback rule — only the literal `127.0.0.1` is trusted over plain HTTP), so this makes that origin unreachable during login rather than letting the handshake fail on it.
+2. Generates state with `crypto.getRandomValues`.
+3. Builds the redirect URI from `window.location.origin` (not a fixed env var), so it always matches the origin serving the page.
+4. Stores `oauth_state` and `oauth_redirect_uri` in `sessionStorage`.
+5. Redirects to Spotify authorize URL.
 - `/callback`:
-1. Server component posts code to backend.
-2. Client component validates returned `state` against stored `oauth_state`.
-3. Writes `token_expiry` in `sessionStorage`.
-4. Callback client effect is guarded with a ref so OAuth handling is idempotent under React Strict Mode double-effect invocation in dev.
+1. Server component only forwards `code`, `state`, and `error` query params to the client component — it performs no fetch.
+2. Client component short-circuits to `/` if a valid `token_expiry` already exists (handles refresh/re-render safely).
+3. Otherwise: a provider `error` param renders a declined-consent message; a missing `code` renders an incomplete-response message; `state` is validated against stored `oauth_state` before any code exchange, and a mismatch renders an unverifiable-login message — none of these three cases call the backend.
+4. Only on a verified `state` does the client POST `{ code, redirect_uri }` to `/api/oauth/` directly from the browser (not from the server component), using the `redirect_uri` stored at login time.
+5. On success, writes `token_expiry` in `sessionStorage` and navigates to `/`; on failure, shows an exchange-failed message with a retry link to `/login`.
+6. Callback client effect is guarded with a ref so OAuth handling is idempotent under React Strict Mode double-effect invocation in dev.
 - `layout.tsx`:
 1. Redirects unauthenticated users to `/login` except on `/login` and `/callback`.
 2. Navbar is hidden on `/login` only (visible on `/callback`).
@@ -122,7 +127,7 @@ Notable endpoints include trailing slashes for some routes:
 ## 6. Data Models and Type Contracts
 
 Backend schema models (`api/app/models/schemas.py`):
-1. `Code { code: str }`
+1. `Code { code: str, redirect_uri: str (non-empty) }`
 2. `Pagination { offset: int, limit: int }` (currently unused by router methods)
 3. `SongPostData { songId: str, playlistIds: list[str] }`
 4. `PlaybackModel { songId: str }`
@@ -141,12 +146,13 @@ Frontend types (`ui/src/types/spotify.d.ts`):
 Backend vars used:
 1. `SPOTIFY_CLIENT_ID`
 2. `SPOTIFY_CLIENT_SECRET`
-3. `SPOTIFY_REDIRECT_URI`
-4. `FRONTEND_URL` (optional CORS allowlist extension)
+3. `SPOTIFY_REDIRECT_URI` (single-URI fallback, used only when `SPOTIFY_REDIRECT_URIS` is unset)
+4. `SPOTIFY_REDIRECT_URIS` (comma-separated allowlist of redirect URIs the token exchange will accept)
+5. `FRONTEND_URL` (optional CORS allowlist extension)
 
 Frontend vars used:
 1. `NEXT_PUBLIC_SPOTIFY_CLIENT_ID`
-2. `NEXT_PUBLIC_WEB_HOST`
+2. `NEXT_PUBLIC_WEB_HOST` (no longer drives the OAuth redirect URI, which is derived from `window.location.origin` instead — see Auth behavior)
 3. `NEXT_PUBLIC_SERVER_HOST`
 
 Deployment config:

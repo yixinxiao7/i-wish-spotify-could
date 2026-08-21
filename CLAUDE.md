@@ -67,7 +67,7 @@ npm run dev
 
 ### Run tests
 ```bash
-# Frontend (20 suites, 68 tests)
+# Frontend (20 suites, 81 tests)
 cd ui && npm test -- --runInBand
 
 # Backend (requires pytest in env)
@@ -77,11 +77,12 @@ cd api && python3 -m pytest
 ## Environment Variables
 
 ### Backend (`api/app/routers/.env`)
-- `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REDIRECT_URI`
+- `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`
+- `SPOTIFY_REDIRECT_URIS` — comma-separated allowlist of redirect URIs the token exchange (`POST /api/oauth/`) will accept; falls back to the single-URI `SPOTIFY_REDIRECT_URI` when unset
 - `FRONTEND_URL` (optional, extends CORS allowlist)
 
 ### Frontend (`ui/.env.local`)
-- `NEXT_PUBLIC_SPOTIFY_CLIENT_ID`, `NEXT_PUBLIC_WEB_HOST`, `NEXT_PUBLIC_SERVER_HOST`
+- `NEXT_PUBLIC_SPOTIFY_CLIENT_ID`, `NEXT_PUBLIC_WEB_HOST` (no longer drives the OAuth redirect URI — that's derived from `window.location.origin` at login time), `NEXT_PUBLIC_SERVER_HOST`
 
 ## Known Gaps
 1. Runtime artifacts `api/user_id.json` and `api/all_uncategorized_songs.json` are not in `.gitignore` (`api/token.json` and `api/pinned_playlists.json` are)

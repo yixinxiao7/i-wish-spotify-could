@@ -11,8 +11,10 @@ export const SCOPES = [
 // Public spotify urls
 export const AUTHORIZE_ENDPOINT = "https://accounts.spotify.com/authorize";
 
-// Redirect url for spotify's oauth
-export const REDIRECT_URL = `${process.env.NEXT_PUBLIC_WEB_HOST}/callback`;
+// Redirect url for spotify's oauth. Derived from the live browser origin
+// rather than a build-time host, so the callback always lands on the same
+// origin that started the login (sessionStorage is partitioned per-origin).
+export const getRedirectUrl = () => `${window.location.origin}/callback`;
 
 // Backend APIs
 export const POST_TOKEN_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/oauth/`;
