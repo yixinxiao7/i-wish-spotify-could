@@ -18,12 +18,17 @@ const Landing: React.FC = () => {
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          <Button
-            className="btn-brand-primary h-12 text-base font-semibold"
-            onClick={() => router.push('/organize')}
-          >
-            categorize songs
-          </Button>
+          <div>
+            <Button
+              className="btn-brand-primary h-12 w-full text-base font-semibold"
+              onClick={() => router.push('/organize')}
+            >
+              categorize songs
+            </Button>
+            <p className="mt-2 text-xs leading-relaxed text-brand-muted">
+              sort liked songs that aren&apos;t in any playlist into the playlists you already have.
+            </p>
+          </div>
           <Button
             disabled
             className="btn-brand-muted h-12 text-base font-semibold"
