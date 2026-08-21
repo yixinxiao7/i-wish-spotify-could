@@ -215,7 +215,10 @@ const SongsPage: React.FC = () => {
           </div>
         ) : (
           <>
-        <h1 className="mb-6 text-center text-2xl font-bold tracking-tight text-brand-heading sm:mb-8 sm:text-4xl">uncategorized songs</h1>
+        <h1 className="text-center text-2xl font-bold tracking-tight text-brand-heading sm:text-4xl">uncategorized songs</h1>
+        <p className="mx-auto mb-6 mt-3 max-w-[60%] text-center text-sm text-brand-muted sm:mb-8 sm:mt-4">
+          liked songs that aren&apos;t in any playlist yet — preview them and add each to a playlist.
+        </p>
         <div className="flex flex-col items-center w-full gap-6">
           {songs.length === 0 ? (
             <p className="py-10 text-center text-brand-muted">
