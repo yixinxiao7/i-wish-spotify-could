@@ -20,6 +20,7 @@ export interface Song {
     name: string;
     owner_id: string;
     playlist_image_url?: string;
+    pinned?: boolean;
   }
 
   // export interface Artist {

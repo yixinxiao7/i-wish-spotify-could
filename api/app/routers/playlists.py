@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from app.services.playlists_service import get_created_playlists, add_song_to_playlists
 from app.services.token_service import get_valid_token
-from app.models.schemas import SongPostData
+from app.services.pins_service import read_pins, set_pin, apply_pins
+from app.models.schemas import SongPostData, PinPostData
 import logging
 import json
 import os
@@ -14,7 +15,7 @@ def get_playlists():
     '''
     Get playlists
     Returns:
-        dict: List of playlists
+        dict: List of playlists, pinned playlists first
         {
             "playlists": list
             [
@@ -22,14 +23,45 @@ def get_playlists():
                     "id": str,
                     "name": str,
                     "owner_id": str,
-                    "playlist_image_url": str | None
+                    "playlist_image_url": str | None,
+                    "pinned": bool
                 }
             ]
         }
     '''
     token = get_valid_token()
     playlists = get_created_playlists(token)
+    playlists = apply_pins(playlists, read_pins())
     return {"playlists": playlists}
+
+
+@router.get("/pins")
+def get_pins():
+    '''
+    Get pinned playlist IDs
+    Returns:
+        dict: Pinned playlist IDs
+        {
+            "pinnedIds": list[str]
+        }
+    '''
+    return {"pinnedIds": list(read_pins())}
+
+
+@router.post("/pin")
+def post_pin(pin_post_data: PinPostData):
+    '''
+    Pin or unpin a playlist
+    Args:
+        pin_post_data (PinPostData): Playlist ID and desired pin state
+    Returns:
+        dict: Updated pinned playlist IDs
+        {
+            "pinnedIds": list[str]
+        }
+    '''
+    pinned_ids = set_pin(pin_post_data.playlistId, pin_post_data.pinned)
+    return {"pinnedIds": list(pinned_ids)}
 
 @router.post("/add-song")
 def post_song_to_playlists(song_post_data: SongPostData):
