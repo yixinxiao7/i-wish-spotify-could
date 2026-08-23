@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
+import Image from 'next/image';
+import { Music } from 'lucide-react';
 
 import {
 	Card,
@@ -28,6 +30,7 @@ import { Button } from "./button"
 import { PlaylistList } from "./playlist-list"
 
 import { PlaylistsContext } from '@/components/playlists-provider';
+import { useToast } from '@/components/toast-provider';
 
 import { Playlist } from '@/types/spotify';
 
@@ -44,13 +47,6 @@ interface SongProps {
 	className?: string
 }
 
-interface Toast {
-	message: string;
-	type: 'success' | 'error';
-}
-
-const TOAST_DISMISS_MS = 5000;
-
 export const SongCard: React.FC<SongProps> = React.memo(({
 	id,
 	name,
@@ -64,20 +60,9 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 }) => {
 	const [selectedPlaylists, setSelectedPlaylists] = useState<Playlist[]>([]);
 	const [dialogOpen, setDialogOpen] = useState(false);
-	const [toast, setToast] = useState<Toast | null>(null);
 	const [addingToPlaylist, setAddingToPlaylist] = useState(false);
 	const playlistsContext = useContext(PlaylistsContext);
-
-	const showToast = useCallback((message: string, type: 'success' | 'error') => {
-		setToast({ message, type });
-	}, []);
-
-	// Auto-dismiss toast
-	useEffect(() => {
-		if (!toast) return;
-		const timer = setTimeout(() => setToast(null), TOAST_DISMISS_MS);
-		return () => clearTimeout(timer);
-	}, [toast]);
+	const { showToast } = useToast();
 
 	// Surface pin failures on this song's toast, but only while its own
 	// dialog is open — otherwise every rendered SongCard would toast at once,
@@ -87,6 +72,11 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 			showToast(playlistsContext.error, 'error');
 		}
 	}, [dialogOpen, playlistsContext?.error, showToast]);
+
+	const selectedPlaylistIds = useMemo(
+		() => new Set(selectedPlaylists.map((p) => p.id)),
+		[selectedPlaylists]
+	);
 
 	const updateSelectedPlaylists = (playlist: Playlist, checked: boolean) => {
 		setSelectedPlaylists((prev) => {
@@ -177,44 +167,55 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 	};
 
 	return (
-		<>
 			<Card className={`glass-surface w-full max-w-5xl rounded-xl text-brand-body ${className}`}>
 				<CardHeader className="p-4 sm:p-6">
 					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 						<div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
-							{/* Play/Pause Button */}
-							<Button
-								size="icon"
-								onClick={handlePlaybackToggle}
-								disabled={playbackLoading}
-								aria-label={isPlaying ? "Pause" : "Play"}
-								className="btn-brand-primary relative h-12 w-12 min-h-[48px] min-w-[48px] flex-shrink-0 overflow-hidden p-0 sm:h-16 sm:w-16 sm:min-h-[64px] sm:min-w-[64px]"
-								style={album_pic_url ? { backgroundImage: `url('${album_pic_url}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-							>
-								{/* Overlay for icon visibility */}
-								{album_pic_url && (
-									<span className="absolute inset-0 bg-black/40 z-0" />
+							{/* Album art is the hero — a real image, not a decoration behind a button */}
+							<div className="group relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg sm:h-20 sm:w-20">
+								{album_pic_url ? (
+									<Image
+										src={album_pic_url}
+										alt={`${album} cover art`}
+										fill
+										sizes="80px"
+										className="object-cover"
+									/>
+								) : (
+									<div className="flex h-full w-full items-center justify-center bg-brand-footer text-brand-muted">
+										<Music className="h-6 w-6" aria-hidden="true" />
+									</div>
 								)}
-								<span className="relative z-10 flex items-center justify-center w-full h-full">
+								<div className="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/30 group-focus-within:bg-black/30" />
+								<Button
+									size="icon"
+									variant="brand"
+									onClick={handlePlaybackToggle}
+									disabled={playbackLoading}
+									aria-label={isPlaying ? "Pause" : "Play"}
+									className="absolute bottom-1 right-1 z-10 h-8 w-8 rounded-full p-0 opacity-90 shadow-md before:absolute before:-inset-1.5 before:content-[''] transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+								>
 									{isPlaying ? (
-										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 sm:w-8 sm:h-8 text-white">
+										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="h-3.5 w-3.5">
 											<rect x="8" y="7" width="6" height="18" rx="1" fill="currentColor" />
 											<rect x="18" y="7" width="6" height="18" rx="1" fill="currentColor" />
 										</svg>
 									) : (
-										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 sm:w-8 sm:h-8 text-white">
+										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="h-3.5 w-3.5">
 											<polygon points="8,6 28,16 8,26" fill="currentColor" />
 										</svg>
 									)}
-								</span>
-							</Button>
+								</Button>
+							</div>
 							<div className="min-w-0">
 								<CardTitle className="text-sm font-bold leading-none text-brand-heading sm:text-[1rem] truncate">{name}</CardTitle>
 								<CardDescription className="mt-1 text-xs text-brand-muted sm:mt-2 sm:text-[.875rem]">
 									<div className="truncate">{artists}</div>
-									<div className="truncate">
-										<b className="text-brand-body">{album}</b>
-									</div>
+									{album !== name && (
+										<div className="truncate">
+											<b className="text-brand-body">{album}</b>
+										</div>
+									)}
 								</CardDescription>
 							</div>
 						</div>
@@ -222,28 +223,30 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 							<DialogTrigger asChild>
 								<Button
 									size="sm"
-									className="btn-brand-primary h-11 w-full whitespace-nowrap px-4 text-xs font-semibold sm:h-10 sm:w-auto sm:min-w-[150px] sm:max-w-[150px]">
+									variant="brand"
+									className="h-11 w-full whitespace-nowrap px-4 text-xs font-semibold sm:h-10 sm:w-auto sm:min-w-[150px] sm:max-w-[150px]">
 									add to playlists
 								</Button>
 							</DialogTrigger>
-							<DialogContent className="max-h-[80vh] overflow-hidden">
-								<DialogHeader>
+							<DialogContent className="flex max-h-[85vh] flex-col overflow-hidden">
+								<DialogHeader className="flex-shrink-0">
 									<DialogTitle>Playlists</DialogTitle>
-									<DialogDescription className="max-h-[60vh] overflow-y-auto pr-4" asChild>
-										<div>
-											<PlaylistList
-												playlists={allPlaylists}
-												selectedIds={new Set(selectedPlaylists.map((p) => p.id))}
-												onToggleSelect={updateSelectedPlaylists}
-											/>
-										</div>
-									</DialogDescription>
 								</DialogHeader>
-								<DialogFooter className="flex justify-center w-full">
+								<DialogDescription className="min-h-0 flex-1 overflow-y-auto pr-3" asChild>
+									<div>
+										<PlaylistList
+											playlists={allPlaylists}
+											selectedIds={selectedPlaylistIds}
+											onToggleSelect={updateSelectedPlaylists}
+										/>
+									</div>
+								</DialogDescription>
+								<DialogFooter className="flex w-full flex-shrink-0 justify-center">
 									<Button
 										onClick={addSongToPlaylists}
 										disabled={addingToPlaylist}
-										className="btn-brand-primary h-11 w-full text-base font-semibold sm:h-10 sm:w-auto sm:min-w-[170px] sm:max-w-[170px]"
+										variant="brand"
+										className="h-11 w-full text-base font-semibold sm:h-10 sm:w-auto sm:min-w-[170px] sm:max-w-[170px]"
 									>
 										{addingToPlaylist ? "adding..." : "add"}
 									</Button>
@@ -253,33 +256,5 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 					</div>
 				</CardHeader>
 			</Card>
-
-			{/* Toast notification */}
-			{toast && (
-				<div
-					role="status"
-					aria-live="polite"
-					aria-atomic="true"
-					className={`fixed bottom-5 left-5 right-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 shadow-md sm:left-auto ${
-						toast.type === 'success'
-							? 'toast-success'
-							: 'toast-error'
-					}`}
-				>
-					<span className="text-sm font-medium">{toast.message}</span>
-					<button
-						onClick={() => setToast(null)}
-						aria-label="Dismiss notification"
-						className="ml-1 flex-shrink-0 rounded-full p-2 hover:bg-foreground/10 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-							<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-						</svg>
-					</button>
-				</div>
-			)}
-		</>
 	)
 })
-
-SongCard.displayName = "SongCard"

@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SongCard } from "./song";
+import { ToastProvider } from "@/components/toast-provider";
 
 const playlist = {
   id: "p1",
@@ -9,6 +10,10 @@ const playlist = {
   playlist_image_url: "https://img.test/1.png",
 };
 
+function renderSong(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
+
 describe("SongCard", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -16,7 +21,7 @@ describe("SongCard", () => {
   });
 
   it("renders song metadata", () => {
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -35,7 +40,7 @@ describe("SongCard", () => {
   it("toggles playback with start and stop calls", async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
 
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -55,7 +60,7 @@ describe("SongCard", () => {
   });
 
   it("shows toast when add is clicked with no selected playlists", async () => {
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -79,7 +84,7 @@ describe("SongCard", () => {
     const onSuccess = jest.fn();
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
 
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -115,7 +120,7 @@ describe("SongCard", () => {
   it("shows toast for playback failure paths", async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: false });
 
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -131,7 +136,7 @@ describe("SongCard", () => {
 
   it("shows toast when add-song request returns non-ok", async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: false });
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -151,7 +156,7 @@ describe("SongCard", () => {
 
   it("shows toast when add-song request throws", async () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error("boom"));
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -177,7 +182,7 @@ describe("SongCard", () => {
       .mockResolvedValueOnce({ ok: false })
       .mockRejectedValueOnce(new Error("boom"));
 
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -200,7 +205,7 @@ describe("SongCard", () => {
   });
 
   it("shows no playlists message when none are provided", () => {
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -216,7 +221,7 @@ describe("SongCard", () => {
   });
 
   it("shows a pin toggle for each playlist in the add-to-playlist dialog", () => {
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
@@ -234,7 +239,7 @@ describe("SongCard", () => {
   it("dismisses toast when the X button is clicked", async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: false });
 
-    render(
+    renderSong(
       <SongCard
         id="song-1"
         name="Song Name"
