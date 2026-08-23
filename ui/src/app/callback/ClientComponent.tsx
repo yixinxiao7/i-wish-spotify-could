@@ -98,7 +98,8 @@ const CallBackClient = ({ code, state, error }: CallbackClientProps) => {
           <Button
             onClick={retry}
             size="lg"
-            className="btn-brand-primary mt-8 h-12 w-full text-base font-semibold motion-reduce:transition-none"
+            variant="brand"
+            className="mt-8 h-12 w-full text-base font-semibold motion-reduce:transition-none"
           >
             Try again
           </Button>

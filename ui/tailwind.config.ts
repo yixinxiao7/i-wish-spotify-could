@@ -57,6 +57,7 @@ export default {
   				muted: 'hsl(var(--brand-muted))',
   				label: 'hsl(var(--brand-label))',
   				green: 'hsl(var(--brand-green))',
+  				'green-fg': 'hsl(var(--brand-green-fg))',
   				blue: 'hsl(var(--brand-blue))',
   				'on-accent': 'hsl(var(--brand-on-accent))',
   				'accent-border': 'hsl(var(--brand-accent-border))',

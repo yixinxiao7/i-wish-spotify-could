@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import OrganizePage from "./page";
+import { ToastProvider } from "@/components/toast-provider";
 
 jest.mock("@/components/ui/song", () => ({
   SongCard: ({
@@ -76,10 +77,10 @@ describe("Organize page", () => {
   });
 
   it("loads and renders songs", async () => {
-    render(<OrganizePage />);
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
 
-    await waitFor(() => expect(screen.getByText("uncategorized songs")).toBeInTheDocument());
-    expect(screen.getByText("Song One-0-10-0")).toBeInTheDocument();
+    expect(screen.getByText("uncategorized songs")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Song One-0-10-0")).toBeInTheDocument());
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/songs/total"),
       expect.any(Object)
@@ -88,7 +89,7 @@ describe("Organize page", () => {
   });
 
   it("supports pagination actions and refresh", async () => {
-    render(<OrganizePage />);
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
 
     await waitFor(() => expect(screen.getByText("Song One-0-10-0")).toBeInTheDocument());
     fireEvent.click(screen.getByLabelText("Go to next page"));
@@ -110,17 +111,61 @@ describe("Organize page", () => {
 
   it("renders empty list state without pagination when total is zero", async () => {
     global.fetch = createFetchMock({ total: 0, songs: [] });
-    render(<OrganizePage />);
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
 
-    await waitFor(() => expect(screen.getByText("uncategorized songs")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("No uncategorized songs found. All your liked songs are already in playlists!")).toBeInTheDocument()
+    );
     expect(screen.queryByLabelText("Go to next page")).not.toBeInTheDocument();
   });
 
   it("handles failed fetches and exits loading state", async () => {
     global.fetch = createFetchMock({ failPlaylists: true, failTotal: true, failSongs: true });
-    render(<OrganizePage />);
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
 
-    await waitFor(() => expect(screen.getByText("uncategorized songs")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("No uncategorized songs found. All your liked songs are already in playlists!")).toBeInTheDocument()
+    );
     expect(console.error).toHaveBeenCalled();
+  });
+
+  it("shows a slow-loading notice if the request is still pending after a few seconds", async () => {
+    jest.useFakeTimers({ advanceTimers: true });
+    global.fetch = jest.fn(() => new Promise(() => {})); // never resolves
+
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
+
+    expect(screen.queryByText(/Scanning your liked songs/)).not.toBeInTheDocument();
+    jest.advanceTimersByTime(4000);
+    await waitFor(() =>
+      expect(screen.getByText(/Scanning your liked songs/)).toBeInTheDocument()
+    );
+
+    jest.useRealTimers();
+  });
+
+  it("shows a retry option after the load times out, and retrying re-issues the request", async () => {
+    jest.useFakeTimers({ advanceTimers: true });
+    const slowFetch = createFetchMock();
+    let callCount = 0;
+    global.fetch = jest.fn((...args: Parameters<typeof fetch>) => {
+      callCount += 1;
+      // First round of requests (the initial load) never resolves, so the
+      // timeout fires; the retry after that uses the normal fast mock.
+      if (callCount <= 2) return new Promise(() => {});
+      return (slowFetch as unknown as typeof fetch)(...args);
+    }) as jest.Mock;
+
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
+
+    jest.advanceTimersByTime(25000);
+    await waitFor(() =>
+      expect(screen.getByText(/taking longer than expected/)).toBeInTheDocument()
+    );
+
+    jest.useRealTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => expect(screen.getByText("Song One-0-10-0")).toBeInTheDocument());
   });
 });

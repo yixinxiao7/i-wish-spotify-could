@@ -1,6 +1,6 @@
 # Project Context - `i-wish-spotify-could`
 
-_Last updated: February 25, 2026_
+_Last updated: August 21, 2026 — frontend audit remediation (see below)._
 
 This document reflects the current workspace state from code inspection plus local test execution.
 
@@ -52,7 +52,8 @@ Also implemented:
 2. `/callback`
 3. `/` (landing)
 4. `/organize`
-- Root layout is a client component and performs client-side auth gating via `sessionStorage.token_expiry`.
+- `ui/src/app/layout.tsx` is a server component that exports page `metadata` (title/description) and renders `<html><body>`. All client-side behavior — the `sessionStorage.token_expiry` auth gate, navbar, theme toggle, logout — lives in `ui/src/components/app-shell.tsx`, mounted from the server layout. `/organize` and `/login` each have their own thin server `layout.tsx` (just a `metadata` export) since their `page.tsx` files are client components and can't export `metadata` directly.
+- Toasts are centralized in `ui/src/components/toast-provider.tsx` (`ToastProvider`/`useToast`), mounted once at the `AppShell` root. There is no longer a per-component toast implementation — `SongCard` and the organize page both call the shared `showToast`.
 
 ## 4. Backend Runtime and Endpoints
 
@@ -107,22 +108,21 @@ Notable endpoints include trailing slashes for some routes:
 4. Only on a verified `state` does the client POST `{ code, redirect_uri }` to `/api/oauth/` directly from the browser (not from the server component), using the `redirect_uri` stored at login time.
 5. On success, writes `token_expiry` in `sessionStorage` and navigates to `/`; on failure, shows an exchange-failed message with a retry link to `/login`.
 6. Callback client effect is guarded with a ref so OAuth handling is idempotent under React Strict Mode double-effect invocation in dev.
-- `layout.tsx`:
+- `app-shell.tsx` (client, mounted from the server `layout.tsx`):
 1. Redirects unauthenticated users to `/login` except on `/login` and `/callback`.
 2. Navbar is hidden on `/login` only (visible on `/callback`).
 3. Logout button calls `DELETE /api/oauth/logout`, removes `token_expiry`, and routes to `/login`.
+4. Wraps children in `ThemeProvider` and `ToastProvider`.
 
 ## Organize page behavior
-- On mount, it calls:
-1. `fetchPlaylists()`
-2. `fetchTotalSongs()`
-3. `fetchSongs(offset, limit)`
-- Uses local state pagination with selectable limits (10/25/50).
+- On mount, a single `runLoad(offset, limit, isInitial)` orchestrator drives loading: it creates an `AbortController`, calls `fetchSongs` (and `fetchTotalSongs` when `isInitial`), and starts two timers — a 4s "slow" notice and a 25s hard timeout that aborts the request and switches the page into a retry state (`Try again` button, calls `runLoad` again with the same offset/limit/isInitial via a ref). `PlaylistsProvider` fetches playlists independently, same as before.
+- While loading, the page renders skeleton song rows (`SongCardSkeleton`) instead of a bare spinner; the "Scanning your liked songs…" notice appears only after the 4s slow-load threshold.
+- Uses local state pagination with selectable limits (10/25/50); the limit `Select` has an explicit `aria-label="Songs per page"` since its `SelectLabel` lives inside the closed popup and doesn't name the trigger.
 - `SongCard`:
-1. Playback toggle calls start/stop endpoints.
-2. Playlist dialog with checkbox selection.
-3. Submission calls add-song endpoint then refresh callback.
-4. Uses `alert()` for user feedback.
+1. Album art renders as a real `next/image` (hero-sized, `alt` set to `"{album} cover art"`); the play/pause control is a small overlay badge in the corner rather than a permanent 40%-opacity scrim across the whole image.
+2. Playback toggle calls start/stop endpoints; failures/successes go through the shared toast, not a local one.
+3. Playlist dialog with checkbox selection; the album line is omitted when it duplicates the track name.
+4. Submission calls add-song endpoint then refresh callback.
 
 ## 6. Data Models and Type Contracts
 
@@ -169,27 +169,27 @@ Deployment config:
 - Result: backend tests were not executed in this audit environment.
 
 ## Frontend tests
-- Present: 16 Jest test files under `ui/src`.
+- Present: 26 Jest test files under `ui/src`.
 - Local execution command: `npm test -- --runInBand`.
 - Result:
-1. 16 suites total.
-2. 16 passed.
+1. 24 suites total.
+2. 24 passed.
 3. 0 failed.
-4. 44 tests total: 44 passed, 0 failed.
+4. 94 tests total: 94 passed, 0 failed.
+- Coverage (`npm test -- --coverage`): ~95% statements / ~87% branches / ~95% functions / ~96% lines, above the enforced 85% `jest.config.js` threshold. `app/organize/page.tsx` branch coverage (73%) is the weakest spot — the uncovered lines are pre-existing pagination-link edge cases, not the new load/timeout/retry logic (which is covered).
 
 Non-fatal test console warnings currently observed:
-- DOM nesting warning in layout tests (`<html>` inside RTL container).
-- DOM nesting warning in song dialog tests (`<p>` nested inside `<p>` through dialog description composition).
+- DOM nesting warning in `layout.test.tsx` (`<html>` inside RTL container) — expected, since that's the one place in the app the real `<html>` tag renders.
 
 ## 9. Key Gaps and Risks (As of This Snapshot)
 
 1. File-based state and single-user assumptions remain.
 2. Cache invalidation is partial; uncategorized cache updates only on add-song and manual file lifecycle.
-3. `/api/songs/total` depends on cache file existence and can timeout when called before cache creation.
+3. `/api/songs/total` can still block up to 30s server-side before the cache file appears. The frontend now applies a client-side 25s timeout with a skeleton-loading UI and a retry action (see `ui/src/app/organize/page.tsx`), but the backend's own blocking wait is unchanged — out of scope for this remediation pass, tracked for a future backend-side fix (e.g. a 202-style "still indexing" response).
 4. Playback error handling returns success HTTP status in failure branches.
-5. Logout client flow has no explicit error handling around failed network call before route push.
-6. `ui/src/styles/globals.css` appears legacy/duplicate relative to `ui/src/app/globals.css`.
-7. Runtime artifact files are currently untracked but not ignored (`api/user_id.json`, `api/all_uncategorized_songs.json`).
+5. Logout client flow has no explicit error handling around failed network call before route push (documented by an `app-shell.test.tsx` case).
+6. Runtime artifact files are currently untracked but not ignored (`api/user_id.json`, `api/all_uncategorized_songs.json`).
+7. No playlist search/filter in the add-to-playlist dialog — with a large playlist library, pinning only helps the top few; deferred from the audit remediation as a feature, not a fix.
 
 ## 10. Practical Runbook
 

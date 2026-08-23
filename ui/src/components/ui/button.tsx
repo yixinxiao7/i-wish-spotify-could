@@ -19,6 +19,10 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        brand:
+          "rounded-full shadow-lg transition-[filter,box-shadow] hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none bg-[linear-gradient(90deg,hsl(var(--brand-green)),hsl(var(--brand-blue)))] border border-[color:var(--brand-btn-primary-border)] text-[hsl(var(--brand-on-accent))]",
+        brandMuted:
+          "rounded-full shadow-lg transition-[filter,box-shadow] hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none bg-[image:var(--brand-btn-muted-bg)] border border-[color:hsl(var(--brand-accent-border))] text-brand-body",
       },
       size: {
         default: "h-9 px-4 py-2",

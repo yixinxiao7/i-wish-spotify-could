@@ -1,11 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-
-interface PageToast {
-  message: string;
-  type: 'success' | 'error';
-}
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 
 import {
   GET_TOTAL_SONGS_ENDPOINT,
@@ -15,6 +10,7 @@ import {
 import { Song } from '@/types/spotify';
 
 import { PlaylistsProvider } from '@/components/playlists-provider';
+import { useToast } from '@/components/toast-provider';
 
 import {
   Pagination,
@@ -40,7 +36,32 @@ import {
   SongCard
 } from "@/components/ui/song"
 
-const TOAST_DISMISS_MS = 5000;
+// A first-time visitor's cache can take a while to build server-side; give
+// the request room to finish before treating it as stuck.
+const LOAD_TIMEOUT_MS = 25000;
+// After this long without a response, tell the user why — a bare spinner
+// with no explanation reads as broken, not busy.
+const SLOW_NOTICE_MS = 4000;
+
+function SongCardSkeleton() {
+  return (
+    <div
+      className="glass-surface w-full max-w-5xl animate-pulse rounded-xl p-4 sm:p-6"
+      aria-hidden="true"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex items-center space-x-3 sm:space-x-4">
+          <div className="h-12 w-12 flex-shrink-0 rounded-full bg-foreground/10 sm:h-16 sm:w-16" />
+          <div className="space-y-2">
+            <div className="h-3 w-32 rounded bg-foreground/10 sm:w-40" />
+            <div className="h-2.5 w-24 rounded bg-foreground/10 sm:w-28" />
+          </div>
+        </div>
+        <div className="h-11 w-full rounded-full bg-foreground/10 sm:h-10 sm:w-[150px]" />
+      </div>
+    </div>
+  );
+}
 
 const SongsPage: React.FC = () => {
     const [songs, setSongs] = useState<Song[]>([]);
@@ -49,25 +70,27 @@ const SongsPage: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [offset, setOffset] = useState<number>(0);
     const [limit, setLimit] = useState<number>(10);
-    const [pageToast, setPageToast] = useState<PageToast | null>(null);
+    const [timedOut, setTimedOut] = useState<boolean>(false);
+    const [showSlowNotice, setShowSlowNotice] = useState<boolean>(false);
+    const { showToast } = useToast();
 
-    const showPageToast = useCallback((message: string, type: 'success' | 'error') => {
-      setPageToast({ message, type });
-    }, []);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingRequestRef = useRef<{ offset: number; limit: number; isInitial: boolean }>({
+      offset: 0,
+      limit: 10,
+      isInitial: true,
+    });
 
-    // Auto-dismiss toast
-    useEffect(() => {
-      if (!pageToast) return;
-      const timer = setTimeout(() => setPageToast(null), TOAST_DISMISS_MS);
-      return () => clearTimeout(timer);
-    }, [pageToast]);
+    const clearLoadTimers = () => {
+      if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+      if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
+      slowTimerRef.current = null;
+      timeoutTimerRef.current = null;
+    };
 
-    useEffect(() => {
-        fetchTotalSongs();
-        fetchSongs(offset, limit);
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const fetchTotalSongs = async () => {
+    const fetchTotalSongs = useCallback(async (signal: AbortSignal) => {
       try {
         const response = await fetch(GET_TOTAL_SONGS_ENDPOINT, {
           method: "GET",
@@ -75,6 +98,7 @@ const SongsPage: React.FC = () => {
           headers: {
             "Content-Type": "application/json"
           },
+          signal,
         });
         if (response.ok) {
           const data = await response.json();
@@ -83,12 +107,13 @@ const SongsPage: React.FC = () => {
           throw new Error("Failed to fetch total songs");
         }
       } catch (error) {
+        if ((error as Error).name === "AbortError") return;
         console.error("Error fetching total songs:", error);
-        showPageToast("Failed to load song count. Please try refreshing.", 'error');
+        showToast("Failed to load song count. Please try refreshing.", 'error');
       }
-    }
+    }, [showToast]);
 
-    const fetchSongs = useCallback(async (fetchOffset: number, fetchLimit: number) => {
+    const fetchSongs = useCallback(async (fetchOffset: number, fetchLimit: number, signal: AbortSignal) => {
       const params = new URLSearchParams({
         offset: String(fetchOffset),
         limit: String(fetchLimit),
@@ -102,7 +127,8 @@ const SongsPage: React.FC = () => {
           mode: 'cors',
           headers: {
             "Content-Type": "application/json"
-          }
+          },
+          signal,
         });
         if (response.ok) {
           const data = await response.json();
@@ -111,23 +137,64 @@ const SongsPage: React.FC = () => {
           throw new Error("Failed to fetch songs");
         }
       } catch (error) {
+        if ((error as Error).name === "AbortError") return;
         console.error("Error fetching songs:", error);
-        showPageToast("Failed to load songs. Please try refreshing.", 'error');
-      } finally {
+        showToast("Failed to load songs. Please try refreshing.", 'error');
+      }
+    }, [showToast]);
+
+    const runLoad = useCallback((fetchOffset: number, fetchLimit: number, isInitial: boolean) => {
+      clearLoadTimers();
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      pendingRequestRef.current = { offset: fetchOffset, limit: fetchLimit, isInitial };
+
+      setTimedOut(false);
+      setShowSlowNotice(false);
+      setLoading(true);
+
+      slowTimerRef.current = setTimeout(() => setShowSlowNotice(true), SLOW_NOTICE_MS);
+      timeoutTimerRef.current = setTimeout(() => {
+        controller.abort();
+        setTimedOut(true);
+        setLoading(false);
+      }, LOAD_TIMEOUT_MS);
+
+      const tasks: Promise<void>[] = [fetchSongs(fetchOffset, fetchLimit, controller.signal)];
+      if (isInitial) tasks.push(fetchTotalSongs(controller.signal));
+
+      Promise.all(tasks).finally(() => {
+        // The timeout branch above already resolved the UI state; don't
+        // stomp on it if this request lost the race with the abort.
+        if (controller.signal.aborted) return;
+        clearLoadTimers();
         setOffset(fetchOffset);
         setLimit(fetchLimit);
         setLoading(false);
-      }
-    }, [showPageToast]);
+      });
+    }, [fetchSongs, fetchTotalSongs]);
+
+    useEffect(() => {
+        runLoad(0, 10, true);
+        return () => {
+          abortControllerRef.current?.abort();
+          clearLoadTimers();
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const retryLoad = useCallback(() => {
+      const { offset: pendingOffset, limit: pendingLimit, isInitial } = pendingRequestRef.current;
+      runLoad(pendingOffset, pendingLimit, isInitial);
+    }, [runLoad]);
 
     const refreshSongs = useCallback(() => {
-      setLoading(true);
-      fetchSongs(offset, limit);
-    }, [fetchSongs, offset, limit]);
+      runLoad(offset, limit, false);
+    }, [runLoad, offset, limit]);
 
     const handleSongSuccess = useCallback((msg: string) => {
-      showPageToast(msg, 'success');
-    }, [showPageToast]);
+      showToast(msg, 'success');
+    }, [showToast]);
 
     const lastPage = useMemo(() => Math.ceil(total / limit), [total, limit]);
 
@@ -145,59 +212,48 @@ const SongsPage: React.FC = () => {
       else if (newPage > lastPage) {
         newPage = lastPage;
       }
-      setLoading(true);
       setCurrentPage(newPage);
-      fetchSongs(newOffset, limit);
+      runLoad(newOffset, limit, false);
     }
 
     const handleLimitChange = (newLimit: number) => {
-      setLoading(true);
-      fetchSongs(offset, newLimit);
+      runLoad(offset, newLimit, false);
     }
 
     return (
       <PlaylistsProvider>
-      <div key="songs" className="flex w-full flex-1 flex-col items-center justify-start px-4 py-10">
+      <div key="songs" className="app-bg flex w-full flex-1 flex-col items-center justify-start px-4 py-10">
+        <h1 className="text-center text-2xl font-bold tracking-tight text-brand-heading sm:text-4xl">uncategorized songs</h1>
+        <p className="mx-auto mb-6 mt-3 max-w-[42ch] text-center text-sm text-brand-muted sm:mb-8 sm:mt-4">
+          liked songs that aren&apos;t in any playlist yet — preview them and add each to a playlist.
+        </p>
 
-        {/* Page-level toast — lives outside the loading branch so it survives refresh cycles */}
-        {pageToast && (
-          <div
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            className={`fixed bottom-5 left-5 right-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 shadow-md sm:left-auto ${
-              pageToast.type === 'success'
-                ? 'toast-success'
-                : 'toast-error'
-            }`}
-          >
-            <span className="text-sm font-medium">{pageToast.message}</span>
+        {timedOut ? (
+          <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 py-10 text-center" role="alert">
+            <p className="max-w-[42ch] text-sm text-brand-muted">
+              This is taking longer than expected. Your library may still be indexing — try again in a moment.
+            </p>
             <button
-              onClick={() => setPageToast(null)}
-              aria-label="Dismiss notification"
-              className="ml-1 flex-shrink-0 rounded-full p-2 hover:bg-foreground/10 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={retryLoad}
+              className="btn-brand-primary h-11 rounded-full px-6 text-sm font-semibold"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-              </svg>
+              Try again
             </button>
           </div>
-        )}
-
-        {loading ? (
-          <div className="flex w-full flex-1 items-center justify-center py-10" role="status" aria-label="Loading songs">
-            <svg className="animate-spin h-8 w-8 text-brand-muted motion-reduce:hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+        ) : loading ? (
+          <div className="flex w-full flex-col items-center gap-6" role="status" aria-live="polite">
             <span className="sr-only">Loading songs…</span>
+            {showSlowNotice && (
+              <p className="max-w-[42ch] text-center text-sm text-brand-muted">
+                Scanning your liked songs — this can take a minute the first time.
+              </p>
+            )}
+            {Array.from({ length: Math.min(limit, 10) }).map((_, i) => (
+              <SongCardSkeleton key={i} />
+            ))}
           </div>
         ) : (
           <>
-        <h1 className="text-center text-2xl font-bold tracking-tight text-brand-heading sm:text-4xl">uncategorized songs</h1>
-        <p className="mx-auto mb-6 mt-3 max-w-[60%] text-center text-sm text-brand-muted sm:mb-8 sm:mt-4">
-          liked songs that aren&apos;t in any playlist yet — preview them and add each to a playlist.
-        </p>
         <div className="flex flex-col items-center w-full gap-6">
           {songs.length === 0 ? (
             <p className="py-10 text-center text-brand-muted">
@@ -221,12 +277,12 @@ const SongsPage: React.FC = () => {
         </div>
         <div className="mt-8 flex flex-col items-center w-full gap-4">
           <Select onValueChange={(value) => handleLimitChange(Number(value))}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[180px]" aria-label="Songs per page">
               <SelectValue placeholder={limit} />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectLabel>Limit</SelectLabel>
+                <SelectLabel>Songs per page</SelectLabel>
                 <SelectItem value="10">10</SelectItem>
                 <SelectItem value="25">25</SelectItem>
                 <SelectItem value="50">50</SelectItem>

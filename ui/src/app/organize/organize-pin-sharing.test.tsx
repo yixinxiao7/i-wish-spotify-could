@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import OrganizePage from "./page";
+import { ToastProvider } from "@/components/toast-provider";
 
 // Unlike page.test.tsx, this file renders the real SongCard so we can verify
 // that pinning a playlist from one song's dialog is reflected in another
@@ -47,7 +48,7 @@ describe("Organize page — pin sharing across song cards", () => {
   });
 
   it("shows a playlist pinned from one song's dialog as pinned in another song's dialog", async () => {
-    render(<OrganizePage />);
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
 
     await waitFor(() => expect(screen.getByText("Song One")).toBeInTheDocument());
     expect(screen.getByText("Song Two")).toBeInTheDocument();

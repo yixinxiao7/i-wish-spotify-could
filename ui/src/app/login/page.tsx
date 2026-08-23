@@ -53,7 +53,8 @@ const Login: React.FC = () => {
         <Button
           onClick={handleLogin}
           size="lg"
-          className="btn-brand-primary mt-8 h-12 w-full text-base font-semibold"
+          variant="brand"
+          className="mt-8 h-12 w-full text-base font-semibold"
         >
           Log in
         </Button>
