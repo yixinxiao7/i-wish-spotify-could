@@ -125,14 +125,51 @@ describe("Organize page", () => {
     expect(screen.queryByLabelText("Go to next page")).not.toBeInTheDocument();
   });
 
-  it("handles failed fetches and exits loading state", async () => {
+  it("reports a failed fetch as an error, not as an empty library", async () => {
     global.fetch = createFetchMock({ failPlaylists: true, failTotal: true, failSongs: true });
     render(<ToastProvider><OrganizePage /></ToastProvider>);
 
-    await waitFor(() =>
-      expect(screen.getByText("No uncategorized songs found. All your liked songs are already in playlists!")).toBeInTheDocument()
-    );
+    // The empty state is a claim about the user's library ("all your liked
+    // songs are already in playlists"). Showing it when the request failed
+    // tells the user something untrue about their own data.
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(
+      screen.queryByText("No uncategorized songs found. All your liked songs are already in playlists!")
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(console.error).toHaveBeenCalled();
+  });
+
+  it("surfaces the server's own error message, such as a rate-limit explanation", async () => {
+    const rateLimitMessage =
+      "Spotify is rate limiting this app right now. This usually clears on its own within an hour — please try again later.";
+    global.fetch = jest.fn((input: URL | RequestInfo) => {
+      const url = String(input);
+      if (url.includes("/api/playlists")) {
+        return Promise.resolve({ ok: true, json: async () => ({ playlists: [] }) }) as Promise<Response>;
+      }
+      return Promise.resolve({
+        ok: false,
+        status: 429,
+        json: async () => ({ detail: rateLimitMessage }),
+      }) as Promise<Response>;
+    }) as jest.Mock;
+
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
+
+    await waitFor(() => expect(screen.getAllByText(rateLimitMessage).length).toBeGreaterThan(0));
+  });
+
+  it("still shows the empty-library state when the load genuinely returns no songs", async () => {
+    global.fetch = createFetchMock({ total: 0, songs: [] });
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("No uncategorized songs found. All your liked songs are already in playlists!")
+      ).toBeInTheDocument()
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows a slow-loading notice if the request is still pending after a few seconds", async () => {
