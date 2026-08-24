@@ -122,3 +122,35 @@ def test_get_valid_token_refresh_failure_raises(monkeypatch, tmp_path):
 
     with pytest.raises(Exception, match="Failed to refresh Spotify token"):
         token_service.get_valid_token()
+
+
+# ---------------------------------------------------------------------------
+# get_granted_scopes
+# ---------------------------------------------------------------------------
+
+
+def test_get_granted_scopes_parses_space_separated_scope(monkeypatch, tmp_path):
+    token_path = tmp_path / "token.json"
+    token_path.write_text(json.dumps({"access_token": "t", "scope": "user-top-read user-library-read"}), encoding="utf-8")
+    monkeypatch.setattr(token_service, "TOKEN_PATH", str(token_path))
+
+    assert token_service.get_granted_scopes() == {"user-top-read", "user-library-read"}
+
+
+def test_get_granted_scopes_missing_file_returns_empty_set(monkeypatch, tmp_path):
+    monkeypatch.setattr(token_service, "TOKEN_PATH", str(tmp_path / "does-not-exist.json"))
+    assert token_service.get_granted_scopes() == set()
+
+
+def test_get_granted_scopes_corrupt_json_returns_empty_set(monkeypatch, tmp_path):
+    token_path = tmp_path / "token.json"
+    token_path.write_text("{not valid json", encoding="utf-8")
+    monkeypatch.setattr(token_service, "TOKEN_PATH", str(token_path))
+    assert token_service.get_granted_scopes() == set()
+
+
+def test_get_granted_scopes_missing_scope_field_returns_empty_set(monkeypatch, tmp_path):
+    token_path = tmp_path / "token.json"
+    token_path.write_text(json.dumps({"access_token": "t"}), encoding="utf-8")
+    monkeypatch.setattr(token_service, "TOKEN_PATH", str(token_path))
+    assert token_service.get_granted_scopes() == set()

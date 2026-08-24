@@ -30,13 +30,18 @@ const Landing: React.FC = () => {
               sort liked songs that aren&apos;t in any playlist into the playlists you already have.
             </p>
           </div>
-          <Button
-            variant="brandMuted"
-            disabled
-            className="h-12 text-base font-semibold disabled:opacity-100 disabled:bg-none disabled:bg-muted disabled:text-muted-foreground disabled:border-transparent disabled:shadow-none"
-          >
-            coming soon...
-          </Button>
+          <div>
+            <Button
+              variant="brandMuted"
+              className="h-12 w-full text-base font-semibold"
+              onClick={() => router.push('/clean')}
+            >
+              clean up playlists
+            </Button>
+            <p className="mt-2 text-xs leading-relaxed text-brand-muted">
+              find songs you&apos;ve stopped listening to and remove them from a playlist.
+            </p>
+          </div>
         </div>
       </article>
     </section>

@@ -6,7 +6,8 @@ export const SCOPES = [
     'user-read-private',
     'user-read-email',
     'user-library-read',
-    'user-modify-playback-state'
+    'user-modify-playback-state',
+    'user-top-read'
 ]
 // Public spotify urls
 export const AUTHORIZE_ENDPOINT = "https://accounts.spotify.com/authorize";
@@ -25,6 +26,11 @@ export const GET_PLAYLISTS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/ap
 export const POST_PLAYLISTS_ADD_SONG_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/add-song`;
 export const GET_PLAYLIST_PINS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/pins`;
 export const POST_PLAYLIST_PIN_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/pin`;
+// Playlist-cleanup: reading/removing songs within one playlist. Both verbs
+// share the same URL — GET takes offset/limit/sort as query params, DELETE
+// takes { songId } as its body.
+export const getPlaylistSongsEndpoint = (playlistId: string) =>
+    `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/${playlistId}/songs`;
 export const PUT_START_PLAYBACK_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playback/start`;
 export const PUT_STOP_PLAYBACK_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playback/stop`;
 export const DELETE_LOGOUT_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/oauth/logout`;

@@ -258,4 +258,30 @@ describe("SongCard", () => {
       expect(screen.queryByText("Failed to start playback.")).not.toBeInTheDocument()
     );
   });
+
+  it("renders no trash control when onRemove is absent", () => {
+    renderSong(
+      <SongCard id="song-1" name="Song Name" artists="Artist" album="Album" onRefresh={jest.fn()} />
+    );
+    expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+  });
+
+  it("renders an accessibly-named, keyboard-operable trash control and calls onRemove with the song id", () => {
+    const onRemove = jest.fn();
+    renderSong(
+      <SongCard
+        id="song-1"
+        name="Song Name"
+        artists="Artist"
+        album="Album"
+        onRefresh={jest.fn()}
+        onRemove={onRemove}
+      />
+    );
+
+    const trashButton = screen.getByRole("button", { name: "Remove Song Name" });
+    expect(trashButton.tagName).toBe("BUTTON"); // native element: keyboard operability is inherent
+    fireEvent.click(trashButton);
+    expect(onRemove).toHaveBeenCalledWith("song-1");
+  });
 });

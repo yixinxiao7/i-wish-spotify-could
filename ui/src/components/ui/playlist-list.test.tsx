@@ -98,7 +98,7 @@ describe("PlaylistList", () => {
   it("falls back to the PlaylistsProvider context when no playlists prop is given", () => {
     const togglePin = jest.fn();
     render(
-      <PlaylistsContext.Provider value={{ playlists, loading: false, error: null, togglePin }}>
+      <PlaylistsContext.Provider value={{ playlists, loading: false, error: null, togglePin, refetch: jest.fn() }}>
         <PlaylistList />
       </PlaylistsContext.Provider>
     );
@@ -109,11 +109,35 @@ describe("PlaylistList", () => {
   it("uses context togglePin when no onTogglePin override is provided", async () => {
     const togglePin = jest.fn().mockResolvedValue(undefined);
     render(
-      <PlaylistsContext.Provider value={{ playlists, loading: false, error: null, togglePin }}>
+      <PlaylistsContext.Provider value={{ playlists, loading: false, error: null, togglePin, refetch: jest.fn() }}>
         <PlaylistList />
       </PlaylistsContext.Provider>
     );
     fireEvent.click(screen.getByRole("button", { name: "Pin Alpha" }));
     await waitFor(() => expect(togglePin).toHaveBeenCalledWith("p1", true));
+  });
+
+  it("renders the row label as a plain label when onSelectPlaylist is absent", () => {
+    render(<PlaylistList playlists={playlists} />);
+    expect(screen.queryByRole("button", { name: "Alpha" })).not.toBeInTheDocument();
+    expect(screen.getByText("Alpha").tagName).toBe("LABEL");
+  });
+
+  it("renders the row label as a button and calls onSelectPlaylist when activated", () => {
+    const onSelectPlaylist = jest.fn();
+    render(<PlaylistList playlists={playlists} onSelectPlaylist={onSelectPlaylist} />);
+    fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
+    expect(onSelectPlaylist).toHaveBeenCalledWith(playlists[0]);
+  });
+
+  it("activating the pin toggle does not call onSelectPlaylist", () => {
+    const onSelectPlaylist = jest.fn();
+    const onTogglePin = jest.fn();
+    render(
+      <PlaylistList playlists={playlists} onSelectPlaylist={onSelectPlaylist} onTogglePin={onTogglePin} />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pin Alpha" }));
+    expect(onTogglePin).toHaveBeenCalled();
+    expect(onSelectPlaylist).not.toHaveBeenCalled();
   });
 });

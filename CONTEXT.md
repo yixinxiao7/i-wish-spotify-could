@@ -1,6 +1,6 @@
 # Project Context - `i-wish-spotify-could`
 
-_Last updated: August 23, 2026 — uncategorized-songs load speedup (parallel index build, freshness/manual refresh, atomic writes; see §4 "Uncategorized-songs index" and §5 "Organize page behavior" below). Prior entry: August 21, 2026 — frontend audit remediation._
+_Last updated: August 24, 2026 — playlist cleanup feature (`/clean`, `/clean/[playlistId]`; least-listened sorting via a listening-affinity signal; deferred, undoable song removal; see §4 "Playlist-songs and listening-affinity services" and §5 "Clean playlist pages" below). Prior entry: August 23, 2026 — uncategorized-songs load speedup._
 
 This document reflects the current workspace state from code inspection plus local test execution.
 
@@ -12,7 +12,7 @@ This document reflects the current workspace state from code inspection plus loc
 2. Modified: `ui/tsconfig.json`
 3. Untracked: `api/all_uncategorized_songs.json` (~282 KB)
 4. Untracked: `api/user_id.json`
-- Important: `.gitignore` currently ignores `token.json` but does not ignore `api/user_id.json` or `api/all_uncategorized_songs.json`.
+- Important: `.gitignore` ignores `token.json`, `pinned_playlists.json`, and (as of this change) `track_affinity.json`, but still does not ignore `api/user_id.json` or `api/all_uncategorized_songs.json`.
 
 ## 2. What the App Does Today
 
@@ -28,6 +28,7 @@ Main flow:
 
 Also implemented:
 - Logout endpoint and UI logout button that clears local server cache files and client auth marker.
+- **Playlist cleanup** (`/clean`, `/clean/[playlistId]`): the reverse tool — finding songs to remove from a playlist the user already owns. `/clean` lists owned playlists (reusing the same `PlaylistList` component and pinning as everywhere else); picking one opens `/clean/[playlistId]`, which shows that playlist's songs (via the same `SongCard` presentation as `/organize`) sorted by playlist order, date added (either direction), or a "least listened" estimate. Removing a song is deferred five seconds behind an undo toast before the actual Spotify call fires.
 
 ## 3. High-Level Architecture
 
@@ -41,8 +42,10 @@ Also implemented:
 1. `token.json`
 2. `user_id.json`
 3. `all_uncategorized_songs.json`
+4. `pinned_playlists.json`
+5. `track_affinity.json` (new — listening-affinity cache)
 - Spotify network calls:
-1. Most calls route through `app/services/http_client.py` (`spotify_get`, `spotify_post`) with tenacity retry on `429`.
+1. Most calls route through `app/services/http_client.py` (`spotify_get`, `spotify_post`, `spotify_delete`) with tenacity retry on `429`.
 2. Playback service still uses raw `requests.put` directly.
 
 ## Frontend (`ui/`)
@@ -52,6 +55,8 @@ Also implemented:
 2. `/callback`
 3. `/` (landing)
 4. `/organize`
+5. `/clean` (new — playlist chooser)
+6. `/clean/[playlistId]` (new — playlist cleanup view)
 - `ui/src/app/layout.tsx` is a server component that exports page `metadata` (title/description) and renders `<html><body>`. All client-side behavior — the `sessionStorage.token_expiry` auth gate, navbar, theme toggle, logout — lives in `ui/src/components/app-shell.tsx`, mounted from the server layout. `/organize` and `/login` each have their own thin server `layout.tsx` (just a `metadata` export) since their `page.tsx` files are client components and can't export `metadata` directly.
 - Toasts are centralized in `ui/src/components/toast-provider.tsx` (`ToastProvider`/`useToast`), mounted once at the `AppShell` root. There is no longer a per-component toast implementation — `SongCard` and the organize page both call the shared `showToast`.
 
@@ -64,7 +69,7 @@ Backend app entry: `api/app/main.py`
 - Body: `{ code, redirect_uri }`. Rejects `redirect_uri` not present in the server allowlist (`SPOTIFY_REDIRECT_URIS`, falling back to `SPOTIFY_REDIRECT_URI`) with HTTP 400.
 - Exchanges authorization code for token and writes `token.json`.
 2. `DELETE /api/oauth/logout`
-- Deletes any of: `token.json`, `user_id.json`, `all_uncategorized_songs.json`.
+- Deletes any of: `token.json`, `user_id.json`, `all_uncategorized_songs.json`, `pinned_playlists.json`, `track_affinity.json`.
 3. `GET /api/songs/`
 - Returns paginated uncategorized songs with `offset`/`limit` query params.
 4. `GET /api/songs/total`
@@ -75,16 +80,22 @@ Backend app entry: `api/app/main.py`
 - Returns current-user-owned playlists.
 7. `POST /api/playlists/add-song`
 - Adds one song to multiple playlists, then removes the song from the uncategorized-songs index via `songs_service.remove_song_from_index()` (the router no longer touches the cache file directly).
-8. `PUT /api/playback/start`
-9. `PUT /api/playback/stop`
+8. `GET /api/playlists/{playlist_id}/songs` (new)
+- Query params `offset`, `limit`, `sort` (`playlist`|`added_asc`|`added_desc`|`affinity_asc`). `404` if the playlist is unknown or not owned by the current user (looked up via `get_created_playlists`, which is owned-only by construction). `400` for an unrecognized `sort`. Returns `{playlist: {id, name}, songs: [...], total, affinity: {available, reason}}` — each song carries `affinity_tier` (0–3), attached at read time from whatever affinity map was passed in, not stored on the cached list.
+9. `DELETE /api/playlists/{playlist_id}/songs` (new)
+- Body `{songId}`. `403` on a permission failure, `502` on any other failure. On success, invalidates that playlist's cached song list (`playlist_songs_service.invalidate_playlist_cache`) and marks the uncategorized-songs index stale (`songs_service.mark_index_stale`) so a later read triggers exactly one background rebuild — removing a song can make a liked song uncategorized again.
+10. `PUT /api/playback/start`
+11. `PUT /api/playback/stop`
 
 ## Notable backend behaviors
 - `FastAPI(..., redirect_slashes=False)` is enabled.
 - OAuth/token logic in `oauth.py` and `token_service.py` uses `load_dotenv()`.
 - Token refresh buffer: 60 seconds before expiry.
 - `playlists_service.add_song_to_playlists()` and the uncategorized-songs index build share one bounded concurrency ceiling (`http_client.CONCURRENCY_CEILING = 8`) and one pooled `requests.Session`, rather than each opening their own connections or thread pools.
-- `http_client.py`'s 429 retry honors Spotify's `Retry-After` header when present, falling back to the previous exponential backoff otherwise — relevant because the app runs under Spotify's Development Mode quota, which is tighter than extended quota.
+- `http_client.py`'s 429 retry honors Spotify's `Retry-After` header when present, falling back to the previous exponential backoff otherwise — relevant because the app runs under Spotify's Development Mode quota, which is tighter than extended quota. **The honored wait is capped at `MAX_RETRY_AFTER_SECONDS` (60s)**: past that, the retry stops and the `429` is returned to the caller, which each service turns into an ordinary error. This cap is not theoretical — during verification of the playlist-cleanup feature the account hit the Development Mode quota and Spotify answered with `Retry-After: 6493` (~108 minutes). Honoring that verbatim (the previous behavior) parked the request thread for the full duration: the request never returned, the page spun forever with no error, and the wedged threads even prevented `uvicorn --reload` from restarting its worker. With the cap, the same rate-limited request now fails in ~0.09s with a logged warning and a `502` the UI can report.
 - Playback router catches exceptions but returns tuple-like payloads in success status path tests; error branches currently return HTTP 200 with error message text rather than 4xx/5xx.
+- **Rate limiting is reported, not swallowed.** `http_client` raises a typed `SpotifyRateLimitedError` whenever a 429 survives the retry budget *or* carries a `Retry-After` past the cap; `_call()` normalizes both outcomes (previously one returned a plain response and the other surfaced tenacity's opaque `RetryError`). Every router maps it to **HTTP 429** with a plain-language message, and maps other Spotify failures to **502**. This matters more than it sounds: an unhandled exception returns a bare `500` that `CORSMiddleware` never annotates, so the browser reports a misleading *"blocked by CORS policy"* error instead of the real cause. Observed live — `/api/playlists/`, `/api/songs/` and `/api/songs/total` all did exactly this during a rate limit, and the frontend's catch-all then rendered "No uncategorized songs found. All your liked songs are already in playlists!", telling the user their library was empty when the request had simply failed.
+- **Spotify rate limits per endpoint, not per app.** Verified live: `/me/playlists` returned `429` with `Retry-After: 3858` while `/me/tracks` and `/me/top/tracks` both returned `200` in the same moment. Because nearly every request path calls `get_created_playlists()` (→ `/me/playlists`) — including `/api/playlists/`, the uncategorized index build, and `_find_owned_playlist` on *every* playlist-cleanup request — one limited endpoint takes the whole app down. Worth keeping in mind when diagnosing: "nothing loads" can mean one endpoint is limited, not that the account or token is broken.
 
 ## Uncategorized-songs index (`songs_service.py`)
 
@@ -148,6 +159,64 @@ from ~15–21s), warm read **~9ms**.
   its own index independently (wasted quota, not correctness — the atomic
   write keeps the file itself consistent either way).
 
+## Playlist-songs and listening-affinity services (new)
+
+Added for the playlist-cleanup feature.
+
+- **Removal endpoint discrepancy (verified live)**: Spotify's public reference
+  for removing playlist items still documents the older `/tracks` endpoint,
+  whose body key is `tracks` (`{"tracks": [{"uri": ...}]}`). This app's
+  `/tracks` calls 403 (as `CLAUDE.md` already recorded for reads). The
+  endpoint that actually works is `DELETE /v1/playlists/{id}/items`, but it
+  uses a **different body key**: `{"items": [{"uri": ...}]}` — the `items`
+  endpoint rejects the `tracks`-keyed body with `400 "No uris provided"`.
+  Verified against a throwaway playlist: created it, added two tracks,
+  removed one with the `items`-keyed body, confirmed only the other
+  remained, then deleted the playlist. `snapshot_id` is deliberately omitted
+  from the removal request — the playlist's cached state that triggers a
+  removal may be minutes old, and sending a snapshot from it risks rejecting
+  a removal against a playlist that changed elsewhere in the meantime.
+  Removing a track removes **every occurrence** of it in the playlist —
+  Spotify addresses removal by URI, not position.
+- **`playlist_songs_service.py`**: fetches a playlist's full song list (id,
+  name, artists, album, art, `added_at`) using a richer `fields` projection
+  than the uncategorized-index build's ID-only one —
+  `items(added_at,item(id,name,artists(name),album(name,images))),next,total`
+  — verified live to return populated data. Reuses
+  `playlists_service.PlaylistIntegrityError` for the same failure mode: a
+  non-zero `total` with zero extracted songs raises rather than returning an
+  empty list. Cached in memory per playlist ID with a 5-minute freshness
+  window (no runtime file); a successful removal invalidates that playlist's
+  entry directly. Ordering (`playlist`/`added_asc`/`added_desc`/`affinity_asc`)
+  is computed over the *entire* playlist before pagination, not per-page —
+  `affinity_asc` sorts ascending by tier, breaking ties by oldest `added_at`
+  so the songs surfaced first are both unlistened-to and longest held.
+- **`affinity_service.py`**: Spotify exposes no per-track play count. The
+  nearest real signal is `GET /me/top/tracks`, which returns at most 50
+  tracks per time range (`short_term`≈4wk, `medium_term`≈6mo,
+  `long_term`≈1yr+) with no way to page past 50. The service fetches all
+  three concurrently and reduces them to a `{track_id: tier}` map: tier 3 =
+  in `short_term`, 2 = `medium_term` only, 1 = `long_term` only, 0 = in none
+  — the dominant case for any playlist much larger than the ~150-track
+  ceiling this signal can cover. Requires the `user-top-read` scope; checked
+  from `token_service.get_granted_scopes()` (parses the token's stored
+  `scope` field) *before* spending a request, not inferred from a 403 — this
+  app already overloads 403 elsewhere ("playlist unreadable"), so relying on
+  it here would make a stale scope and a quota problem indistinguishable.
+  Cached the same way as the uncategorized index (versioned envelope,
+  atomic write, in-memory copy validated by mtime, single-flight build via
+  `threading.Event`), but with one deliberate difference: a stale affinity
+  cache (24h window) triggers a **synchronous** rebuild rather than
+  serve-stale-then-background — the rebuild costs only 3 requests, so
+  there's no reason to serve day-old tiers when refreshing is this cheap. A
+  failed refresh keeps whatever was cached rather than discarding it.
+- **`songs_service.mark_index_stale()`**: rewrites the uncategorized index's
+  `built_at` to the epoch while preserving `songs`. Called after a
+  successful playlist-song removal, since that can make a liked song
+  uncategorized again; the existing 15-minute freshness machinery then
+  handles the rebuild — the request that triggered the removal is never
+  blocked on it.
+
 ## 5. Frontend Behavior
 
 Core frontend constants: `ui/src/utils/config.ts`
@@ -157,6 +226,8 @@ Notable endpoints include trailing slashes for some routes:
 2. `GET_SONGS_ENDPOINT = .../api/songs/`
 3. `GET_PLAYLISTS_ENDPOINT = .../api/playlists/`
 4. Others are non-trailing slash (`/total`, `/add-song`, `/start`, `/stop`, `/logout`).
+5. `getPlaylistSongsEndpoint(playlistId)` (new) — a function, not a constant, since the playlist ID is dynamic. GET and DELETE share the same URL; GET takes `offset`/`limit`/`sort` as query params, DELETE takes `{songId}` as its body.
+6. `SCOPES` gained `user-top-read` — every pre-existing session's token lacks it until the user logs out and back in (see §9).
 
 ## Auth behavior
 - `/login`:
@@ -188,6 +259,18 @@ Notable endpoints include trailing slashes for some routes:
 2. Playback toggle calls start/stop endpoints; failures/successes go through the shared toast, not a local one.
 3. Playlist dialog with checkbox selection; the album line is omitted when it duplicates the track name.
 4. Submission calls add-song endpoint then refresh callback.
+5. (new) Optional `onRemove(songId)` prop renders a trash control with an accessible name naming the song; nothing else about the card changes. Used only from the cleanup page.
+
+## Clean playlist pages (new)
+
+- `/clean`: lists owned playlists via the same `PlaylistList` component and `PlaylistsProvider` context as everywhere else — pinning and pinned-first ordering apply automatically. `PlaylistList` gained an optional `onSelectPlaylist(playlist)` prop that turns the row label into a button (`router.push('/clean/' + playlist.id)`); the pin toggle keeps its existing `stopPropagation` so pinning never navigates. Loading, empty (owns no playlists), and error+retry states are handled directly on the page. The retry action needed a `refetch()` added to `PlaylistsContext` — a small additive extension of `playlists-provider.tsx`; `fetchPlaylists` now also sets `loading` at the start of every call (not just the initial mount) so a retry shows a loading state too.
+- `/clean/[playlistId]`: fetches one page of the playlist's songs from the new endpoint, renders each with `SongCard`, and offers a sort control (four options, `affinity_asc` shown but disabled with an explanatory line when the response's `affinity.available` is `false`), pagination, and page-size selection modeled on `/organize`. Also wrapped in `PlaylistsProvider` — `SongCard`'s "add to playlists" dialog is reused wholesale here, not just its layout, so it needs a live provider to be functional.
+  - **Removal is deferred client-side.** Clicking the trash control adds the song's ID to a `pendingRemovalIds` set (the displayed list is `songs.filter(s => !pendingRemovalIds.has(s.id))` — the raw fetched list is never mutated, so undo restores exact position by construction rather than by tracking an index) and starts a 5-second `setTimeout`. The actual `DELETE` fires only when that timer elapses. Undo clears the timer; the request is never sent.
+  - **Undo affordance** is a toast: `showToast(message, 'success', {durationMs: 5000, progress: true, action: {label: 'Undo', onClick: ...}})`. The toast's own auto-dismiss duration matches the removal timer exactly, so the progress bar and the actual deadline never disagree.
+  - **`ToastProvider` gained an optional third argument** to `showToast` (`durationMs`, `action`, `progress`) and now also exposes `dismiss` and returns the new toast's ID from `showToast`. Existing two-argument call sites are unaffected. The progress bar is a state-driven width recomputed on a 100ms interval rather than a CSS keyframe animation, so `motion-reduce:transition-none` removes only the interpolating transition between ticks — remaining time is still conveyed via the discrete updates, satisfying "conveyed but not animated" under reduced motion.
+  - **Flush on unload**: a single effect registers a `pagehide` listener and returns a cleanup function; both call the same `flushAllPending()`, which fires a `keepalive: true` `fetch` for every still-pending timer and clears them. `pagehide` covers a hard close/reload; the effect's own cleanup (on unmount or when `playlistId` changes) covers SPA navigation away. This is the only way a pending removal is guaranteed to reach Spotify rather than being silently dropped.
+  - **Emptied later page**: an effect watching the displayed (filtered) list's length steps back a page automatically if a removal empties a page other than the first, so the user is never left staring at nothing.
+  - **Failure handling**: a failed removal removes the ID from `pendingRemovalIds` (the song reappears) and shows an error toast; a `403` gets its own "could not be modified" message rather than the generic one.
 
 ## 6. Data Models and Type Contracts
 
@@ -196,6 +279,8 @@ Backend schema models (`api/app/models/schemas.py`):
 2. `Pagination { offset: int, limit: int }` (currently unused by router methods)
 3. `SongPostData { songId: str, playlistIds: list[str] }`
 4. `PlaybackModel { songId: str }`
+5. `PinPostData { playlistId: str (non-empty), pinned: bool }`
+6. `RemoveSongData { songId: str (non-empty) }` (new)
 
 Frontend types (`ui/src/types/spotify.d.ts`):
 - `Song` includes fields not returned by backend (`duration_ms`, `explicit`, `preview_url`, `track_number`, `popularity`, `external_urls`), while backend primarily returns:
@@ -205,6 +290,7 @@ Frontend types (`ui/src/types/spotify.d.ts`):
 4. `album`
 5. `album_pic_url`
 - `Playlist` aligns with backend shape.
+- `PlaylistSong` (new): deliberately *not* an extension of `Song` — built directly from what `GET /api/playlists/{id}/songs` actually returns (`id`, `name`, `artists`, `album`, `album_pic_url`, `added_at`, `affinity_tier`), so it doesn't inherit `Song`'s existing gap of claiming fields the backend never sends.
 
 ## 7. Environment and Config
 
@@ -220,25 +306,27 @@ Frontend vars used:
 2. `NEXT_PUBLIC_WEB_HOST` (no longer drives the OAuth redirect URI, which is derived from `window.location.origin` instead — see Auth behavior)
 3. `NEXT_PUBLIC_SERVER_HOST`
 
+No new environment variables were introduced by the playlist-cleanup feature. The requested OAuth scope set (`SCOPES` in `config.ts`) gained `user-top-read`, which is a code change, not a config one — but it means every session whose token predates this change lacks the scope until the user logs out and back in (see §9).
+
 Deployment config:
 - `render.yaml` defines one Python web service (`rootDir: api`) with env vars above.
 
 ## 8. Test Coverage and Current Test Status
 
 ## Backend tests
-- Present: `api/tests/` with 15 files and 136 test functions (added `test_service_http_client.py`; extended `test_service_songs.py`, `test_service_playlists.py`, `test_router_songs.py`, `test_router_playlists.py`, `test_service_users.py` for the uncategorized-songs load speedup — parallel build, envelope storage/atomic writes, single-flight build coordination, freshness/background refresh, the `PlaylistIntegrityError` guard, and the refresh endpoint).
-- Scope includes routers, services, model schema construction, OAuth logout behavior, token refresh logic, and (as of this pass) threading-timing paths tested with `threading.Event`/`Barrier` synchronization rather than real sleeps.
-- Local execution: `cd api && python3 -m pytest` (via `venv/bin/python -m pytest`) — 136 passed, 98% overall statement coverage (`songs_service.py` 98%, `playlists_service.py` 99%, `http_client.py` 100%), above the project's 90% target. The 5 uncovered lines are defensive edge cases (a file vanishing mid-read between `stat` and `open`; cleanup-of-cleanup failure paths).
+- Present: `api/tests/` with 17 files and 207 test functions (added `test_service_affinity.py`, `test_service_playlist_songs.py`; extended `test_service_token.py` (`get_granted_scopes`), `test_service_playlists.py` (`remove_song_from_playlist`), `test_service_songs.py` (`mark_index_stale`), `test_service_http_client.py` (`spotify_delete`), `test_router_playlists.py` (both new endpoints), `test_router_oauth_logout.py` (the new managed file) for the playlist-cleanup feature).
+- Scope includes routers, services, model schema construction, OAuth logout behavior, token refresh logic, and threading-timing paths tested with `threading.Event`/`Barrier` synchronization rather than real sleeps — including the new affinity build's single-flight coordination, which mirrors the uncategorized index's pattern.
+- Local execution: `cd api && python3 -m pytest` (via `venv/bin/python -m pytest`) — 207 passed, 99% overall statement coverage (`playlist_songs_service.py` 100%, `affinity_service.py` 99%, `playlists_service.py` 99%, `songs_service.py` 98%, `routers/playlists.py` 97%), above the project's 90% target. The 13 uncovered lines are pre-existing defensive edge cases (a file vanishing mid-read between `stat` and `open`; cleanup-of-cleanup failure paths; one pre-existing router branch) rather than anything new.
 
 ## Frontend tests
-- Present: 24 Jest test files under `ui/src`.
+- Present: 28 Jest test files under `ui/src` (added `app/clean/page.test.tsx`, `app/clean/layout.test.tsx`, `app/clean/[playlistId]/page.test.tsx`, `app/clean/[playlistId]/layout.test.tsx`; extended `toast-provider.test.tsx` (action/progress), `playlist-list.test.tsx` (`onSelectPlaylist`), `song.test.tsx` (`onRemove`), `playlists-provider.test.tsx` (`refetch`), `page.test.tsx` (the new landing-page entry point)).
 - Local execution command: `npm test -- --runInBand`.
 - Result:
-1. 24 suites total.
-2. 24 passed.
+1. 28 suites total.
+2. 28 passed.
 3. 0 failed.
-4. 98 tests total: 98 passed, 0 failed (added 4 tests for the organize page's "Refresh from Spotify" control).
-- Coverage (`npm test -- --coverage`): ~95% statements / ~86% branches / ~95% functions / ~96% lines, above the enforced 85% `jest.config.js` threshold. `app/organize/page.tsx` branch coverage remains the weakest spot — the uncovered lines are the same pre-existing pagination-link edge cases as before this pass (`handleOffsetChange`'s boundary clamps, individual pagination-link click handlers); the new `handleForceRefresh` path is fully covered.
+4. 136 tests total: 136 passed, 0 failed.
+- Coverage (`npm test -- --coverage`): ~96% statements / ~88% branches / ~94% functions / ~97% lines, above the enforced 85% `jest.config.js` threshold. Weakest spots remain pre-existing (`app/organize/page.tsx` pagination-link edge cases, `playlist-list.tsx`'s FLIP-animation branch, `select.tsx`/`dialog.tsx` shadcn internals) — nothing newly added by this feature meaningfully lowered the floor.
 
 Non-fatal test console warnings currently observed:
 - DOM nesting warning in `layout.test.tsx` (`<html>` inside RTL container) — expected, since that's the one place in the app the real `<html>` tag renders.
@@ -250,7 +338,9 @@ Non-fatal test console warnings currently observed:
 3. Logout client flow has no explicit error handling around failed network call before route push (documented by an `app-shell.test.tsx` case).
 4. Runtime artifact files are currently untracked but not ignored (`api/user_id.json`, `api/all_uncategorized_songs.json`).
 5. No playlist search/filter in the add-to-playlist dialog — with a large playlist library, pinning only helps the top few; deferred from the audit remediation as a feature, not a fix.
-6. Process-level state (the in-memory index cache, cold-build coordination, background-refresh guard) assumes a single backend worker — see `songs_service.py` note in §4. `render.yaml` and local dev both run one worker today, so this holds, but it's an assumption to keep in mind before scaling the backend horizontally.
+6. Process-level state (the in-memory index cache, cold-build coordination, background-refresh guard, **and now the affinity cache and the per-playlist song cache**) assumes a single backend worker — see `songs_service.py` note in §4. `render.yaml` and local dev both run one worker today, so this holds, but it's an assumption to keep in mind before scaling the backend horizontally.
+7. **(new)** `user-top-read` was added to the requested scope set after existing sessions already had tokens. Every session established before this change lacks the scope and must log out and back in once before least-listened sorting becomes available; the app degrades gracefully in the meantime (the option is shown but disabled, with an explanation) rather than breaking.
+8. **(new)** The listening-affinity signal is inherently coarse: Spotify's `/me/top/tracks` caps at 50 tracks per time range with no way to page further, so at most ~150 distinct tracks across all three ranges carry any signal at all. Any playlist larger than that will have most of its songs share the lowest tier (0), making `added_at` the real tiebreaker in practice — this is a property of the data Spotify exposes, not an implementation shortcut, and is called out in the UI copy and the spec.
 
 **Closed by the uncategorized-songs load speedup (2026-08-23):**
 - ~~Cache invalidation is partial; uncategorized cache updates only on add-song and manual file lifecycle.~~ A stale index (>15 min) now triggers a background rebuild automatically, and `POST /api/songs/refresh` lets the user force one on demand — verified live against the real account (see §4).
