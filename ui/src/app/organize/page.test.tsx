@@ -1,9 +1,12 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import OrganizePage from "./page";
 import { ToastProvider } from "@/components/toast-provider";
 
 jest.mock("@/components/ui/song", () => ({
+  // The real SongCard renders <li><h2>...</h2>...</li> (see song.tsx and
+  // song.test.tsx for the semantics themselves); the mock matches that
+  // shape so page-level tests can assert the list stays a real list.
   SongCard: ({
     name,
     onRefresh,
@@ -11,10 +14,10 @@ jest.mock("@/components/ui/song", () => ({
     name: string;
     onRefresh: () => void;
   }) => (
-    <div>
-      <span>{name}</span>
+    <li>
+      <h2>{name}</h2>
       <button onClick={onRefresh}>refresh</button>
-    </div>
+    </li>
   ),
 }));
 
@@ -94,6 +97,15 @@ describe("Organize page", () => {
     expect(global.fetch).toHaveBeenCalledWith(expect.any(URL), expect.any(Object));
   });
 
+  it("exposes the song list as a real, countable list", async () => {
+    render(<ToastProvider><OrganizePage /></ToastProvider>);
+    await waitFor(() => expect(screen.getByText("Song One-0-10-0")).toBeInTheDocument());
+
+    const list = screen.getByRole("list", { name: "Uncategorized songs" });
+    expect(list).toBeInTheDocument();
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+  });
+
   it("supports pagination actions and refresh", async () => {
     render(<ToastProvider><OrganizePage /></ToastProvider>);
 
@@ -111,7 +123,9 @@ describe("Organize page", () => {
     fireEvent.click(screen.getByRole("combobox"));
     fireEvent.click(screen.getByText("25"));
 
-    await waitFor(() => expect(screen.getByText("Song One-10-25-0")).toBeInTheDocument());
+    // A page-size change returns to offset 0 / page 1 — the only position
+    // consistent with the new size — rather than keeping the prior offset.
+    await waitFor(() => expect(screen.getByText("Song One-0-25-0")).toBeInTheDocument());
     expect((global.fetch as jest.Mock).mock.calls.length).toBeGreaterThan(6);
   });
 
@@ -132,7 +146,12 @@ describe("Organize page", () => {
     // The empty state is a claim about the user's library ("all your liked
     // songs are already in playlists"). Showing it when the request failed
     // tells the user something untrue about their own data.
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    // Scoped past name "Notifications": that's the toast host's own
+    // always-mounted, empty-until-populated alert region (see M10), not
+    // this page's error banner.
+    await waitFor(() =>
+      expect(screen.getByRole("alert", { name: (name) => name !== "Notifications" })).toBeInTheDocument()
+    );
     expect(
       screen.queryByText("No uncategorized songs found. All your liked songs are already in playlists!")
     ).not.toBeInTheDocument();
@@ -169,7 +188,9 @@ describe("Organize page", () => {
         screen.getByText("No uncategorized songs found. All your liked songs are already in playlists!")
       ).toBeInTheDocument()
     );
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // The toast host's own empty alert region is always mounted (M10); what
+    // matters here is that this page's own error banner did not appear.
+    expect(screen.queryByRole("alert", { name: (name) => name !== "Notifications" })).not.toBeInTheDocument();
   });
 
   it("shows a slow-loading notice if the request is still pending after a few seconds", async () => {

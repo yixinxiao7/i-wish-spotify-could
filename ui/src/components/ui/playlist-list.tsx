@@ -33,11 +33,22 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
 }) => {
   const context = useContext(PlaylistsContext);
   const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
+  const [filterText, setFilterText] = React.useState("");
 
-  const playlists = useMemo(
+  // Unfiltered — used to tell "no playlists at all" apart from "none match
+  // the filter", and to know whether the filter field is worth showing.
+  const allPlaylists = useMemo(
     () => sortPinnedFirst(playlistsProp ?? context?.playlists ?? []),
     [playlistsProp, context?.playlists]
   );
+  const playlists = useMemo(() => {
+    const query = filterText.trim().toLowerCase();
+    if (!query) return allPlaylists;
+    // Selections live in the caller's own state (selectedIds), keyed by
+    // id and independent of what's currently rendered, so filtering the
+    // visible rows never drops an already-selected playlist (M11).
+    return allPlaylists.filter((p) => p.name.toLowerCase().includes(query));
+  }, [allPlaylists, filterText]);
   const pinnedPlaylists = useMemo(() => playlists.filter((p) => p.pinned), [playlists]);
   const unpinnedPlaylists = useMemo(() => playlists.filter((p) => !p.pinned), [playlists]);
   const showGroups = pinnedPlaylists.length > 0 && unpinnedPlaylists.length > 0;
@@ -100,57 +111,81 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
     }
   };
 
-  if (!playlists || playlists.length === 0) {
+  if (!allPlaylists || allPlaylists.length === 0) {
     return <p>{emptyMessage}</p>;
   }
 
-  const renderRow = (playlist: Playlist) => (
+  const filterField = allPlaylists.length > 1 && (
+    <div className="mb-3">
+      <label htmlFor="playlist-filter" className="sr-only">
+        Filter playlists
+      </label>
+      <input
+        id="playlist-filter"
+        type="text"
+        value={filterText}
+        onChange={(e) => setFilterText(e.target.value)}
+        placeholder="Filter playlists…"
+        className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+    </div>
+  );
+
+  const renderRow = (playlist: Playlist) => {
+    const art = playlist.playlist_image_url ? (
+      <Image
+        src={playlist.playlist_image_url}
+        alt=""
+        width={44}
+        height={44}
+        loading="lazy"
+        className="w-11 h-11 flex-shrink-0 rounded-sm object-cover"
+      />
+    ) : (
+      <div
+        aria-hidden="true"
+        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-sm bg-brand-footer text-brand-muted"
+      >
+        <ListMusic className="h-5 w-5" />
+      </div>
+    );
+
+    return (
     <li
       key={playlist.id}
       ref={setRowRef(playlist.id)}
       className="flex items-center space-x-3 py-2 pr-1"
     >
-      {playlist.playlist_image_url ? (
-        <Image
-          src={playlist.playlist_image_url}
-          alt=""
-          width={44}
-          height={44}
-          loading="lazy"
-          className="w-11 h-11 flex-shrink-0 rounded-sm object-cover"
-        />
-      ) : (
-        <div
-          aria-hidden="true"
-          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-sm bg-brand-footer text-brand-muted"
-        >
-          <ListMusic className="h-5 w-5" />
-        </div>
-      )}
-      {onToggleSelect && (
-        <Checkbox
-          id={`playlist-${playlist.id}`}
-          checked={selectedIds?.has(playlist.id) ?? false}
-          onCheckedChange={(checked) =>
-            onToggleSelect(playlist, checked === true)
-          }
-        />
-      )}
       {onSelectPlaylist ? (
+        // The whole row (art + name) is the target, not just the text —
+        // a label alone in a 60px row left most of it dead (M1).
         <button
           type="button"
           onClick={() => onSelectPlaylist(playlist)}
-          className="truncate flex-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-[44px] min-w-0 flex-1 items-center space-x-3 rounded-md text-left transition-colors hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
         >
-          {playlist.name}
+          {art}
+          <span className="truncate">{playlist.name}</span>
         </button>
       ) : (
-        <label
-          htmlFor={onToggleSelect ? `playlist-${playlist.id}` : undefined}
-          className="truncate flex-1"
-        >
-          {playlist.name}
-        </label>
+        <>
+          {art}
+          {onToggleSelect && (
+            <Checkbox
+              id={`playlist-${playlist.id}`}
+              checked={selectedIds?.has(playlist.id) ?? false}
+              onCheckedChange={(checked) =>
+                onToggleSelect(playlist, checked === true)
+              }
+            />
+          )}
+          <label
+            htmlFor={onToggleSelect ? `playlist-${playlist.id}` : undefined}
+            className="truncate flex-1"
+          >
+            {playlist.name}
+          </label>
+        </>
       )}
       <button
         type="button"
@@ -174,14 +209,30 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
         />
       </button>
     </li>
-  );
+    );
+  };
+
+  if (playlists.length === 0) {
+    return (
+      <div>
+        {filterField}
+        <p>No playlists match &quot;{filterText.trim()}&quot;.</p>
+      </div>
+    );
+  }
 
   if (!showGroups) {
-    return <ul>{playlists.map(renderRow)}</ul>;
+    return (
+      <div>
+        {filterField}
+        <ul>{playlists.map(renderRow)}</ul>
+      </div>
+    );
   }
 
   return (
     <div>
+      {filterField}
       <p
         id="pinned-playlists-heading"
         className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-muted"

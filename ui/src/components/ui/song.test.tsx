@@ -37,6 +37,47 @@ describe("SongCard", () => {
     expect(screen.getByText("Album")).toBeInTheDocument();
   });
 
+  it("hides the album line when the album repeats the track name", () => {
+    renderSong(
+      <SongCard id="song-1" name="Same" artists="Artist" album="Same" onRefresh={jest.fn()} />
+    );
+    expect(screen.queryAllByText("Same")).toHaveLength(1); // only the title
+  });
+
+  it("hides the album line when the album repeats the artist (M8)", () => {
+    renderSong(
+      <SongCard id="song-1" name="Track" artists="Arash" album="Arash" onRefresh={jest.fn()} />
+    );
+    expect(screen.queryAllByText("Arash")).toHaveLength(1); // only the artist line
+  });
+
+  it("shows the album line when it genuinely differs from both the track and the artist", () => {
+    renderSong(
+      <SongCard id="song-1" name="Track" artists="Artist" album="A Different Album" onRefresh={jest.fn()} />
+    );
+    expect(screen.getByText("A Different Album")).toBeInTheDocument();
+  });
+
+  it("exposes itself as a list item with its title as a heading", () => {
+    renderSong(
+      <ul>
+        <SongCard
+          id="song-1"
+          name="Song Name"
+          artists="Artist"
+          album="Album"
+          onRefresh={jest.fn()}
+          allPlaylists={[playlist]}
+        />
+      </ul>
+    );
+
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: "Song Name" });
+    expect(heading.tagName).toBe("H2");
+  });
+
   it("toggles playback with start and stop calls", async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
 
@@ -234,6 +275,28 @@ describe("SongCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "add to playlists" }));
     expect(screen.getByRole("button", { name: "Pin My Playlist" })).toBeInTheDocument();
+  });
+
+  it("describes the dialog itself, not the playlist list, as its accessible description", () => {
+    renderSong(
+      <SongCard
+        id="song-1"
+        name="Song Name"
+        artists="Artist"
+        album="Album"
+        onRefresh={jest.fn()}
+        allPlaylists={[playlist]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "add to playlists" }));
+    const dialog = screen.getByRole("dialog");
+    const describedById = dialog.getAttribute("aria-describedby");
+    expect(describedById).toBeTruthy();
+    const description = document.getElementById(describedById!);
+    expect(description).toHaveTextContent("Select one or more playlists to add this song to.");
+    // The playlist list itself must not be what's wired up as the description.
+    expect(description).not.toHaveTextContent("My Playlist");
   });
 
   it("dismisses toast when the X button is clicked", async () => {

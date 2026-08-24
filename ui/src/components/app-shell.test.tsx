@@ -41,7 +41,9 @@ describe("AppShell", () => {
       </AppShell>
     );
 
-    expect(screen.getByText("Redirecting...")).toBeInTheDocument();
+    // The themed auth shell (M12) rather than a bare fragment.
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByText("Redirecting to login…")).toBeInTheDocument();
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/login"));
   });
 

@@ -34,6 +34,10 @@ const CallBackClient = ({ code, state, error }: CallbackClientProps) => {
 
   const retry = () => router.push('/login');
 
+  // Processes the one-time OAuth redirect: reads the callback's query
+  // params and sessionStorage (both client-only), then either navigates or
+  // reports why the login didn't complete. Genuinely effect-appropriate
+  // work, not the "derived state" pattern this lint rule targets.
   useEffect(() => {
     if (hasHandledCallback.current) {
       return;
@@ -46,6 +50,7 @@ const CallBackClient = ({ code, state, error }: CallbackClientProps) => {
     }
 
     if (error) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAuthError('declined');
       return;
     }
@@ -84,12 +89,15 @@ const CallBackClient = ({ code, state, error }: CallbackClientProps) => {
       .catch(() => {
         setAuthError('exchange_failed');
       });
-  }, []);
+    // Deliberately runs once: hasHandledCallback already guards re-entry,
+    // and code/state/error come from the one-time redirect this component
+    // was mounted to handle, not values that should re-trigger it.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (authError) {
     return (
       <section className="auth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-12">
-        <article className="glass-surface relative w-full max-w-md rounded-3xl p-6 text-brand-body sm:p-8">
+        <article className="surface-panel relative w-full max-w-md rounded-3xl p-6 text-brand-body sm:p-8">
           <p className="mb-2 text-xs uppercase tracking-[0.28em] text-brand-label">I Wish Spotify Could</p>
           <h1 className="text-3xl font-bold leading-tight text-brand-heading sm:text-4xl">login failed</h1>
           <p role="alert" className="mt-3 text-sm leading-relaxed text-brand-muted sm:mt-4">
@@ -110,14 +118,12 @@ const CallBackClient = ({ code, state, error }: CallbackClientProps) => {
 
   return (
     <section className="auth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-12">
-      {/* A raw white/dark icon on the vivid auth-bg gradient can't hold
-          contrast across its full range (it swings from near-black to
-          pastel-light between themes), so the spinner sits inside the same
-          glass-surface treatment as the rest of this page, using tokens
-          already verified against that surface. */}
+      {/* The spinner sits inside the same flat surface-panel treatment as
+          the rest of this page, so its icon color is verified against one
+          known surface rather than the page background directly. */}
       <div
         role="status"
-        className="glass-surface flex h-20 w-20 items-center justify-center rounded-full"
+        className="surface-panel flex h-20 w-20 items-center justify-center rounded-full"
       >
         <svg
           className="h-9 w-9 animate-spin text-brand-muted motion-reduce:hidden"

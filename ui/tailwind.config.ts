@@ -58,10 +58,12 @@ export default {
   				label: 'hsl(var(--brand-label))',
   				green: 'hsl(var(--brand-green))',
   				'green-fg': 'hsl(var(--brand-green-fg))',
-  				blue: 'hsl(var(--brand-blue))',
+  				'green-border': 'hsl(var(--brand-green-border))',
   				'on-accent': 'hsl(var(--brand-on-accent))',
   				'accent-border': 'hsl(var(--brand-accent-border))',
+  				destructive: 'hsl(var(--brand-destructive))',
   				footer: 'hsl(var(--brand-footer))',
+  				'page-bg': 'hsl(var(--brand-page-bg))',
   			}
   		},
   		borderRadius: {

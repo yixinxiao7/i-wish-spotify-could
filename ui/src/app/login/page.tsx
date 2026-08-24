@@ -44,7 +44,7 @@ const Login: React.FC = () => {
     <section
       className="auth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-12"
     >
-      <article className="glass-surface relative w-full max-w-md rounded-3xl p-6 text-brand-body sm:p-8">
+      <article className="surface-panel relative w-full max-w-md rounded-3xl p-6 text-brand-body sm:p-8">
         <p className="mb-2 text-xs uppercase tracking-[0.28em] text-brand-label">I Wish Spotify Could</p>
         <h1 className="text-3xl font-bold leading-tight text-brand-heading sm:text-4xl">better organize your songs</h1>
         <p className="mt-3 text-sm leading-relaxed text-brand-muted sm:mt-4">

@@ -19,15 +19,28 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // Flat fill — no gradient. The border carries the WCAG 1.4.11
+        // boundary in light mode, where the bright fill alone measures
+        // ~2:1 against the card; --brand-green-border resolves to the
+        // same color as the fill in dark mode, where it isn't needed.
         brand:
-          "rounded-full shadow-lg transition-[filter,box-shadow] hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none bg-[linear-gradient(90deg,hsl(var(--brand-green)),hsl(var(--brand-blue)))] border border-[color:var(--brand-btn-primary-border)] text-[hsl(var(--brand-on-accent))]",
+          "rounded-full shadow-lg transition-[filter,box-shadow] hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none bg-brand-green border border-brand-green-border text-[hsl(var(--brand-on-accent))]",
         brandMuted:
-          "rounded-full shadow-lg transition-[filter,box-shadow] hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none bg-[image:var(--brand-btn-muted-bg)] border border-[color:hsl(var(--brand-accent-border))] text-brand-body",
+          "rounded-full shadow-sm transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none bg-transparent border border-brand-accent-border text-brand-body",
+        // Destructive actions (e.g. removing a song from a playlist) get
+        // their own treatment rather than reusing brandMuted's neutral
+        // secondary style.
+        brandDestructive:
+          "rounded-full shadow-sm transition-colors hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none bg-transparent border border-brand-destructive text-brand-destructive",
       },
       size: {
         default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
+        // No rounded-md here: cva composes variant classes before size
+        // classes, and tailwind-merge keeps whichever rounded-* utility
+        // appears last — redeclaring the base's default radius at this
+        // size silently overrode a variant's own shape (M9).
+        sm: "h-8 px-3 text-xs",
+        lg: "h-10 px-8",
         icon: "h-9 w-9",
       },
     },

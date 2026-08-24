@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import CleanPlaylistPage from "./page";
 import { ToastProvider } from "@/components/toast-provider";
 
@@ -8,6 +8,8 @@ jest.mock("next/navigation", () => ({
 }));
 
 jest.mock("@/components/ui/song", () => ({
+  // Matches the real SongCard's shape — <li><h2>...</h2>...</li> — so
+  // page-level tests can assert the list stays a real, non-live list (H6).
   SongCard: ({
     id,
     name,
@@ -17,10 +19,10 @@ jest.mock("@/components/ui/song", () => ({
     name: string;
     onRemove?: (songId: string) => void;
   }) => (
-    <div>
-      <span>{name}</span>
+    <li>
+      <h2>{name}</h2>
       {onRemove && <button onClick={() => onRemove(id)}>{`remove ${name}`}</button>}
-    </div>
+    </li>
   ),
 }));
 
@@ -116,6 +118,23 @@ describe("Clean playlist page", () => {
     await waitFor(() => expect(screen.getByText("Song One")).toBeInTheDocument());
   });
 
+  it("exposes the song list as a real list with no live region re-announcing every row", async () => {
+    global.fetch = createFetchMock({
+      songs: [song("s1", "Song One"), song("s2", "Song Two")],
+      total: 2,
+    });
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Song One")).toBeInTheDocument());
+
+    const list = screen.getByRole("list", { name: "Playlist songs" });
+    expect(list).toBeInTheDocument();
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    // Removals are already announced via the toast region and loading has
+    // its own role="status" — wrapping the whole list in aria-live re-reads
+    // every remaining row on every sort, page, or removal (H6).
+    expect(list).not.toHaveAttribute("aria-live");
+  });
+
   it("defaults to playlist-order sort", async () => {
     global.fetch = createFetchMock();
     renderPage();
@@ -180,6 +199,27 @@ describe("Clean playlist page", () => {
     expect(screen.queryByText(/needs one more permission/i)).not.toBeInTheDocument();
   });
 
+  it("surfaces an upstream-error affinity reason verbatim, without the log-out instruction", async () => {
+    global.fetch = createFetchMock({ affinityAvailable: false, affinityReason: "upstream_error" });
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Song One")).toBeInTheDocument());
+
+    // Logging out and back in only fixes a missing-scope token — telling
+    // the user to do it for an upstream failure sends them to burn their
+    // session on a step that will not help (H7).
+    expect(screen.getByText(/temporarily unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/log out and back in/i)).not.toBeInTheDocument();
+  });
+
+  it("falls back to a generic message for an unrecognized affinity reason", async () => {
+    global.fetch = createFetchMock({ affinityAvailable: false, affinityReason: "something_new" });
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Song One")).toBeInTheDocument());
+
+    expect(screen.getByText("Least-listened sorting is unavailable right now.")).toBeInTheDocument();
+    expect(screen.queryByText(/log out and back in/i)).not.toBeInTheDocument();
+  });
+
   it("removing a song hides it immediately and issues no request until the window elapses", async () => {
     global.fetch = createFetchMock({ songs: [song("s1", "Song One")], total: 1 });
     renderPage();
@@ -209,13 +249,45 @@ describe("Clean playlist page", () => {
     ).length;
 
     act(() => {
-      jest.advanceTimersByTime(6000);
+      jest.advanceTimersByTime(11000);
     });
 
     const deleteCallsAfter = (global.fetch as jest.Mock).mock.calls.filter(
       ([, init]) => init?.method === "DELETE"
     ).length;
     expect(deleteCallsAfter).toBe(deleteCallsBefore); // still zero — undo cancelled it for good
+    jest.useRealTimers();
+  });
+
+  it("hovering the undo toast pauses the removal, and leaving resumes it for the remaining time", async () => {
+    jest.useFakeTimers({ advanceTimers: true });
+    global.fetch = createFetchMock({ songs: [song("s1", "Song One")], total: 1 });
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Song One")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("remove Song One"));
+    const toastRow = screen.getByText('Removed "Song One"').closest("div[aria-atomic]") as HTMLElement;
+
+    act(() => {
+      jest.advanceTimersByTime(4000);
+    });
+    fireEvent.mouseEnter(toastRow);
+    act(() => {
+      jest.advanceTimersByTime(20000); // well past the 10s window
+    });
+
+    let deleteCalls = (global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "DELETE");
+    expect(deleteCalls).toHaveLength(0); // paused — never fired
+
+    fireEvent.mouseLeave(toastRow);
+    act(() => {
+      jest.advanceTimersByTime(7000); // ~6s remained from before the hover
+    });
+
+    await waitFor(() => {
+      deleteCalls = (global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "DELETE");
+      expect(deleteCalls).toHaveLength(1);
+    });
     jest.useRealTimers();
   });
 
@@ -228,7 +300,7 @@ describe("Clean playlist page", () => {
     fireEvent.click(screen.getByText("remove Song One"));
 
     act(() => {
-      jest.advanceTimersByTime(5000);
+      jest.advanceTimersByTime(11000);
     });
 
     await waitFor(() => {
@@ -254,7 +326,7 @@ describe("Clean playlist page", () => {
     expect(screen.queryByText("Song Two")).not.toBeInTheDocument();
 
     act(() => {
-      jest.advanceTimersByTime(6000);
+      jest.advanceTimersByTime(11000);
     });
 
     await waitFor(() => {
@@ -277,7 +349,7 @@ describe("Clean playlist page", () => {
 
     fireEvent.click(screen.getByText("remove Song One"));
     act(() => {
-      jest.advanceTimersByTime(5000);
+      jest.advanceTimersByTime(11000);
     });
 
     await waitFor(() => expect(screen.getByText("Song One")).toBeInTheDocument());
@@ -299,7 +371,7 @@ describe("Clean playlist page", () => {
 
     fireEvent.click(screen.getByText("remove Song One"));
     act(() => {
-      jest.advanceTimersByTime(5000);
+      jest.advanceTimersByTime(11000);
     });
 
     await waitFor(() =>
@@ -347,20 +419,22 @@ describe("Clean playlist page", () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("Song 0")).toBeInTheDocument());
 
-    // Page 1: no prev arrow, no page-1 link, but last page + next present.
-    expect(screen.queryByLabelText("Go to previous page")).not.toBeInTheDocument();
+    // Page 1: Previous is present but disabled (a single Previous/Next pair
+    // is always rendered so the responsive collapse has one control to
+    // switch, not two); last page + Next are reachable and enabled.
+    expect(screen.getByLabelText("Go to previous page")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("6")).toBeInTheDocument();
-    expect(screen.getByLabelText("Go to next page")).toBeInTheDocument();
+    expect(screen.getByLabelText("Go to next page")).toHaveAttribute("aria-disabled", "false");
 
     // Jump to the last page via its link.
     fireEvent.click(screen.getByText("6"));
     await waitFor(() => expect(screen.getByText("Song 50")).toBeInTheDocument());
 
-    // Last page: prev arrow + page-1 link + ellipsis present, next absent.
-    expect(screen.getByLabelText("Go to previous page")).toBeInTheDocument();
+    // Last page: prev arrow + page-1 link + ellipsis present, Next disabled.
+    expect(screen.getByLabelText("Go to previous page")).toHaveAttribute("aria-disabled", "false");
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Go to next page")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Go to next page")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getAllByText("More pages").length).toBeGreaterThan(0);
   });
 
@@ -404,7 +478,12 @@ describe("Clean playlist page", () => {
     });
 
     renderPage();
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    // Scoped past name "Notifications": that's the toast host's own
+    // always-mounted, empty-until-populated alert region (see M10), not
+    // this page's error banner.
+    await waitFor(() =>
+      expect(screen.getByRole("alert", { name: (name) => name !== "Notifications" })).toBeInTheDocument()
+    );
 
     fail = false;
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
