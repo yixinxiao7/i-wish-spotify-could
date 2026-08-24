@@ -2,10 +2,9 @@ from fastapi import APIRouter, HTTPException
 from app.services.playlists_service import get_created_playlists, add_song_to_playlists
 from app.services.token_service import get_valid_token
 from app.services.pins_service import read_pins, set_pin, apply_pins
+from app.services.songs_service import remove_song_from_index
 from app.models.schemas import SongPostData, PinPostData
 import logging
-import json
-import os
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -81,16 +80,7 @@ def post_song_to_playlists(song_post_data: SongPostData):
     token = get_valid_token()
     try:
         add_song_to_playlists(token, song_id, playlist_ids)
-
-        # TODO: update cache of uncategorized songs to remove current song
-        uncategorized_songs_path = 'all_uncategorized_songs.json'
-        if os.path.exists(uncategorized_songs_path):
-            with open(uncategorized_songs_path, 'r') as f:
-                all_uncategorized_songs = json.loads(f.read())
-            # Remove the song from the uncategorized songs list
-            all_uncategorized_songs = [song for song in all_uncategorized_songs if song['id'] != song_id]
-            with open(uncategorized_songs_path, 'w') as f:
-                f.write(json.dumps(all_uncategorized_songs))
+        remove_song_from_index(song_id)
 
     except PermissionError as e:
         logger.warning("Permission denied adding song %s to playlists: %s", song_id, str(e))

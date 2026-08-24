@@ -1,16 +1,19 @@
 "use client"
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { RefreshCw } from 'lucide-react';
 
 import {
   GET_TOTAL_SONGS_ENDPOINT,
-  GET_SONGS_ENDPOINT
+  GET_SONGS_ENDPOINT,
+  POST_REFRESH_SONGS_ENDPOINT
 } from '@/utils/config';
 
 import { Song } from '@/types/spotify';
 
 import { PlaylistsProvider } from '@/components/playlists-provider';
 import { useToast } from '@/components/toast-provider';
+import { Button } from '@/components/ui/button';
 
 import {
   Pagination,
@@ -72,6 +75,7 @@ const SongsPage: React.FC = () => {
     const [limit, setLimit] = useState<number>(10);
     const [timedOut, setTimedOut] = useState<boolean>(false);
     const [showSlowNotice, setShowSlowNotice] = useState<boolean>(false);
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const { showToast } = useToast();
 
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -192,6 +196,28 @@ const SongsPage: React.FC = () => {
       runLoad(offset, limit, false);
     }, [runLoad, offset, limit]);
 
+    const handleForceRefresh = useCallback(async () => {
+      if (isRefreshing) return;
+      setIsRefreshing(true);
+      try {
+        const response = await fetch(POST_REFRESH_SONGS_ENDPOINT, { method: "POST" });
+        if (!response.ok) {
+          throw new Error("Failed to refresh uncategorized songs");
+        }
+        const controller = new AbortController();
+        await Promise.all([
+          fetchSongs(offset, limit, controller.signal),
+          fetchTotalSongs(controller.signal),
+        ]);
+        showToast("Uncategorized songs refreshed.", "success");
+      } catch (error) {
+        console.error("Error refreshing uncategorized songs:", error);
+        showToast("Failed to refresh uncategorized songs. Please try again.", "error");
+      } finally {
+        setIsRefreshing(false);
+      }
+    }, [isRefreshing, offset, limit, fetchSongs, fetchTotalSongs, showToast]);
+
     const handleSongSuccess = useCallback((msg: string) => {
       showToast(msg, 'success');
     }, [showToast]);
@@ -254,6 +280,19 @@ const SongsPage: React.FC = () => {
           </div>
         ) : (
           <>
+        <Button
+          onClick={handleForceRefresh}
+          disabled={isRefreshing}
+          variant="brandMuted"
+          size="sm"
+          className="mb-6 -mt-2 text-xs font-semibold motion-reduce:transition-none"
+        >
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin motion-reduce:animate-none" : ""}`}
+            aria-hidden="true"
+          />
+          {isRefreshing ? "Refreshing…" : "Refresh from Spotify"}
+        </Button>
         <div className="flex flex-col items-center w-full gap-6">
           {songs.length === 0 ? (
             <p className="py-10 text-center text-brand-muted">

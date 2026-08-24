@@ -1,6 +1,8 @@
 import json
+import time
 
 from app.routers import playlists
+from app.services import songs_service
 
 
 def test_get_playlists(client, monkeypatch):
@@ -88,8 +90,8 @@ def test_post_song_to_playlists_updates_cache(client, monkeypatch):
         captured["playlist_ids"] = playlist_ids
 
     monkeypatch.setattr(playlists, "add_song_to_playlists", fake_add)
-    with open("all_uncategorized_songs.json", "w", encoding="utf-8") as f:
-        f.write(json.dumps([{"id": "s1"}, {"id": "s2"}]))
+    built_at = time.time()
+    songs_service._write_index_file([{"id": "s1"}, {"id": "s2"}], built_at)
 
     response = client.post(
         "/api/playlists/add-song",
@@ -103,9 +105,9 @@ def test_post_song_to_playlists_updates_cache(client, monkeypatch):
         "playlist_ids": ["p1", "p2"],
     }
 
-    with open("all_uncategorized_songs.json", "r", encoding="utf-8") as f:
-        remaining = json.loads(f.read())
-    assert remaining == [{"id": "s2"}]
+    remaining_built_at, remaining_songs = songs_service._get_cached_index()
+    assert remaining_songs == [{"id": "s2"}]
+    assert remaining_built_at == built_at  # filing a song is a correction, not a rebuild
 
 
 def test_post_song_to_playlists_without_cache_file(client, monkeypatch):
