@@ -31,6 +31,7 @@
 | DELETE | `/api/oauth/logout` | Clear server-side state files |
 | GET | `/api/songs/` | Paginated uncategorized songs (`offset`/`limit`) |
 | GET | `/api/songs/total` | Count from cache |
+| POST | `/api/songs/refresh` | Force the uncategorized-songs index to rebuild now, ignoring freshness |
 | GET | `/api/playlists/` | User-owned playlists, pinned-first, each with a `pinned` flag |
 | POST | `/api/playlists/add-song` | Add song to playlists, remove from cache |
 | GET | `/api/playlists/pins` | Pinned playlist IDs |
@@ -40,10 +41,11 @@
 
 ### Key Behaviors
 - Single-user, file-based state: `token.json`, `user_id.json`, `all_uncategorized_songs.json`, `pinned_playlists.json`
-- HTTP calls go through `http_client.py` (`spotify_get`/`spotify_post`) with tenacity retry on 429; playback uses raw `requests.put`
+- HTTP calls go through `http_client.py` (`spotify_get`/`spotify_post`), sharing one `requests.Session` sized to `CONCURRENCY_CEILING` (8); tenacity retries on 429, honoring `Retry-After` when Spotify sends it and falling back to exponential backoff otherwise; playback uses raw `requests.put`
 - Token refresh buffer: 60s before expiry
-- `songs_service.get_total_uncategorized_songs()` waits up to 30s for cache file
-- `playlists_service.add_song_to_playlists()` uses `ThreadPoolExecutor(max_workers=10)`
+- Uncategorized-songs index (`songs_service.py`): stored as a versioned envelope (`{"version": 2, "built_at": ..., "songs": [...]}`, written atomically via `os.replace`) rather than a bare array; a bare-array or unparseable file is treated as absent and rebuilt with no error surfaced. A process-level in-memory copy (validated by file mtime) serves paginated reads without re-parsing. Cold builds fan liked-song pages and each owned playlist's item pages out concurrently across one shared 8-way pool (`CONCURRENCY_CEILING`, from `http_client.py`); playlist reads request `fields=items(item(id)),next,total` to transfer track IDs only. Concurrent cold requests join a single in-progress build via an `Event` rather than polling. An index older than 15 minutes (`_FRESHNESS_WINDOW_SECONDS`) is still served immediately, with a background rebuild kicked off behind it (single-flight); `POST /api/songs/refresh` forces a synchronous rebuild regardless of freshness. Filing a song (`remove_song_from_index`) corrects the stored index in place and preserves its `built_at` rather than rebuilding.
+- `playlists_service.get_playlist_songs()` raises `PlaylistIntegrityError` — never treated as an ordinary per-playlist failure — when a playlist reports tracks but the filtered response yields no IDs, since that pattern means the Spotify `fields` expression broke, not that the playlist is empty; letting it propagate is what stops a broken build from silently reporting the user's whole library as uncategorized.
+- `playlists_service.add_song_to_playlists()` uses a `ThreadPoolExecutor` sized to `CONCURRENCY_CEILING` (8), same as the index build
 - `pins_service.apply_pins()` orders playlists pinned-first via a single-pass stable partition, preserving relative order within each group; stale pinned IDs (playlist no longer exists) are ignored
 - `PlaylistsProvider` (frontend) owns the playlist list and pin toggling for the whole `/organize` page, so every rendered `SongCard`'s add-to-playlist dialog shares one pinned state and reorders together
 - Frontend auth gating via `sessionStorage.token_expiry` in `layout.tsx`
@@ -86,10 +88,10 @@ cd api && python3 -m pytest
 
 ## Known Gaps
 1. Runtime artifacts `api/user_id.json` and `api/all_uncategorized_songs.json` are not in `.gitignore` (`api/token.json` and `api/pinned_playlists.json` are)
-2. Cache invalidation is partial — only updates on add-song; external playlist changes require manual cache file deletion
-3. Playback error handling returns HTTP 200 on failure branches
-4. Frontend Song type includes fields the backend doesn't return
-5. `ui/src/styles/globals.css` appears to be a legacy duplicate of `ui/src/app/globals.css`
+2. Playback error handling returns HTTP 200 on failure branches
+3. Frontend Song type includes fields the backend doesn't return
+4. `ui/src/styles/globals.css` appears to be a legacy duplicate of `ui/src/app/globals.css`
+5. Process-level state (in-memory index cache, build coordination) assumes a single backend worker process — `render.yaml` and local dev both run one, but adding workers would let each build its own index independently
 
 ## Conventions
 - Prefer small, focused changes; preserve existing style

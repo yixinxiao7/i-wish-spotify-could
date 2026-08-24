@@ -25,15 +25,21 @@ describe("Organize page", () => {
     failPlaylists = false,
     failTotal = false,
     failSongs = false,
+    refreshImpl,
   }: {
     total?: number;
     songs?: Array<{ id: string; name: string; artists: string; album: string }>;
     failPlaylists?: boolean;
     failTotal?: boolean;
     failSongs?: boolean;
+    refreshImpl?: (init?: RequestInit) => Promise<Response>;
   } = {}) =>
-    jest.fn((input: URL | RequestInfo) => {
+    jest.fn((input: URL | RequestInfo, init?: RequestInit) => {
       const url = String(input);
+      if (url.includes("/api/songs/refresh")) {
+        if (refreshImpl) return refreshImpl(init);
+        return Promise.resolve({ ok: true, json: async () => ({ total }) }) as Promise<Response>;
+      }
       if (url.includes("/api/playlists")) {
         return Promise.resolve(
           failPlaylists
@@ -167,5 +173,92 @@ describe("Organize page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     await waitFor(() => expect(screen.getByText("Song One-0-10-0")).toBeInTheDocument());
+  });
+
+  describe("refresh from Spotify control", () => {
+    it("is keyboard operable and accessibly named", async () => {
+      render(<ToastProvider><OrganizePage /></ToastProvider>);
+      await waitFor(() => expect(screen.getByText("Song One-0-10-0")).toBeInTheDocument());
+
+      const button = screen.getByRole("button", { name: /Refresh from Spotify/i });
+      expect(button.tagName).toBe("BUTTON"); // native element: keyboard operability is inherent
+      expect(button).not.toBeDisabled();
+    });
+
+    it("triggers a POST to the refresh endpoint and refreshes songs and total", async () => {
+      global.fetch = createFetchMock({
+        total: 5,
+        songs: [{ id: "orig", name: "Original Song", artists: "A", album: "Al" }],
+      });
+      render(<ToastProvider><OrganizePage /></ToastProvider>);
+      await waitFor(() => expect(screen.getByText("Original Song-0-10-0")).toBeInTheDocument());
+
+      // After refresh, the backend reflects a different library state.
+      global.fetch = createFetchMock({
+        total: 1,
+        songs: [{ id: "fresh", name: "Fresh Song", artists: "A", album: "Al" }],
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Refresh from Spotify/i }));
+
+      await waitFor(() => {
+        const refreshCall = (global.fetch as jest.Mock).mock.calls.find(([url]) =>
+          String(url).includes("/api/songs/refresh")
+        );
+        expect(refreshCall).toBeTruthy();
+        expect(refreshCall![1]).toMatchObject({ method: "POST" });
+      });
+
+      await waitFor(() => expect(screen.getByText("Fresh Song-0-10-0")).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText("Uncategorized songs refreshed.")).toBeInTheDocument());
+    });
+
+    it("shows in-progress state and blocks a second click while refreshing", async () => {
+      let resolveRefresh: (() => void) | undefined;
+      const pendingRefresh = new Promise<Response>((resolve) => {
+        resolveRefresh = () => resolve({ ok: true, json: async () => ({ total: 30 }) } as Response);
+      });
+      global.fetch = createFetchMock({ refreshImpl: () => pendingRefresh });
+
+      render(<ToastProvider><OrganizePage /></ToastProvider>);
+      await waitFor(() => expect(screen.getByText("Song One-0-10-0")).toBeInTheDocument());
+
+      const button = screen.getByRole("button", { name: /Refresh from Spotify/i });
+      fireEvent.click(button);
+
+      await waitFor(() => expect(screen.getByRole("button", { name: /Refreshing/i })).toBeDisabled());
+
+      const refreshCallsBeforeSecondClick = (global.fetch as jest.Mock).mock.calls.filter(([url]) =>
+        String(url).includes("/api/songs/refresh")
+      ).length;
+      fireEvent.click(screen.getByRole("button", { name: /Refreshing/i })); // no-op: disabled and guarded
+      const refreshCallsAfterSecondClick = (global.fetch as jest.Mock).mock.calls.filter(([url]) =>
+        String(url).includes("/api/songs/refresh")
+      ).length;
+      expect(refreshCallsAfterSecondClick).toBe(refreshCallsBeforeSecondClick);
+
+      resolveRefresh!();
+      await waitFor(() => expect(screen.getByRole("button", { name: /Refresh from Spotify/i })).not.toBeDisabled());
+    });
+
+    it("toasts on failure and leaves the displayed songs unchanged", async () => {
+      global.fetch = createFetchMock({
+        total: 5,
+        songs: [{ id: "orig", name: "Original Song", artists: "A", album: "Al" }],
+      });
+      render(<ToastProvider><OrganizePage /></ToastProvider>);
+      await waitFor(() => expect(screen.getByText("Original Song-0-10-0")).toBeInTheDocument());
+
+      global.fetch = createFetchMock({
+        refreshImpl: () => Promise.resolve({ ok: false, json: async () => ({}) } as Response),
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Refresh from Spotify/i }));
+
+      await waitFor(() =>
+        expect(screen.getByText("Failed to refresh uncategorized songs. Please try again.")).toBeInTheDocument()
+      );
+      expect(screen.getByText("Original Song-0-10-0")).toBeInTheDocument();
+    });
   });
 });

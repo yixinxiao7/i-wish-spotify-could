@@ -1,6 +1,6 @@
 # Project Context - `i-wish-spotify-could`
 
-_Last updated: August 21, 2026 — frontend audit remediation (see below)._
+_Last updated: August 23, 2026 — uncategorized-songs load speedup (parallel index build, freshness/manual refresh, atomic writes; see §4 "Uncategorized-songs index" and §5 "Organize page behavior" below). Prior entry: August 21, 2026 — frontend audit remediation._
 
 This document reflects the current workspace state from code inspection plus local test execution.
 
@@ -68,21 +68,85 @@ Backend app entry: `api/app/main.py`
 3. `GET /api/songs/`
 - Returns paginated uncategorized songs with `offset`/`limit` query params.
 4. `GET /api/songs/total`
-- Returns count from cache file.
-5. `GET /api/playlists/`
+- Returns count from the uncategorized-songs index.
+5. `POST /api/songs/refresh`
+- Forces the uncategorized-songs index to rebuild from Spotify now, ignoring the freshness window. Returns `{ "total": int }`. `502` if the rebuild fails; the previous index is left intact.
+6. `GET /api/playlists/`
 - Returns current-user-owned playlists.
-6. `POST /api/playlists/add-song`
-- Adds one song to multiple playlists, then removes song from cache file if present.
-7. `PUT /api/playback/start`
-8. `PUT /api/playback/stop`
+7. `POST /api/playlists/add-song`
+- Adds one song to multiple playlists, then removes the song from the uncategorized-songs index via `songs_service.remove_song_from_index()` (the router no longer touches the cache file directly).
+8. `PUT /api/playback/start`
+9. `PUT /api/playback/stop`
 
 ## Notable backend behaviors
 - `FastAPI(..., redirect_slashes=False)` is enabled.
 - OAuth/token logic in `oauth.py` and `token_service.py` uses `load_dotenv()`.
 - Token refresh buffer: 60 seconds before expiry.
-- `songs_service.get_total_uncategorized_songs()` waits up to 30 seconds for cache file to appear.
-- `playlists_service.add_song_to_playlists()` uses `ThreadPoolExecutor(max_workers=10)`.
+- `playlists_service.add_song_to_playlists()` and the uncategorized-songs index build share one bounded concurrency ceiling (`http_client.CONCURRENCY_CEILING = 8`) and one pooled `requests.Session`, rather than each opening their own connections or thread pools.
+- `http_client.py`'s 429 retry honors Spotify's `Retry-After` header when present, falling back to the previous exponential backoff otherwise — relevant because the app runs under Spotify's Development Mode quota, which is tighter than extended quota.
 - Playback router catches exceptions but returns tuple-like payloads in success status path tests; error branches currently return HTTP 200 with error message text rather than 4xx/5xx.
+
+## Uncategorized-songs index (`songs_service.py`)
+
+Rebuilt from a strict, mostly-serial cache into a bounded-concurrency build with
+an explicit freshness contract. Measured against a live library of ~1,579 liked
+songs / 26 owned playlists / ~2,667 playlist tracks: cold build **~2.3s** (down
+from ~15–21s), warm read **~9ms**.
+
+- **Storage format**: `api/all_uncategorized_songs.json` is now a versioned
+  envelope — `{"version": 2, "built_at": <unix seconds>, "songs": [...]}` —
+  instead of a bare array. A file in the old bare-array format, or one that's
+  unparseable or missing `built_at`, is treated as if no index existed and is
+  rebuilt silently (no error surfaced to the user). **This is a breaking
+  change to local runtime state only**; a rollback to pre-change code cannot
+  read the new format and needs the cache file deleted (it rebuilds itself on
+  the next request).
+- **Atomic writes**: published via a temp file + `os.replace()` in the same
+  directory, so a concurrent reader never observes a truncated file. This
+  closes a latent race that existed even before this change (`os.path.exists`
+  returns true the instant a write truncates the file) — it was mostly hidden
+  by the old 2-second poll granularity and becomes more reachable now that
+  builds are fast enough to overlap with reads.
+- **In-memory cache**: a process-level `(mtime, songs)` pair avoids re-parsing
+  the file on every paginated read; invalidated automatically when the file's
+  mtime changes (a write from this process, or an external one).
+- **Concurrent build**: liked-song pages and each owned playlist's item pages
+  fan out across offsets computed from each response's `total`, submitted to
+  one shared pool sized to `CONCURRENCY_CEILING` (8) — bounded regardless of
+  library size, so the build can't fan out past what Development Mode quota
+  tolerates. Playlist item pages request `fields=items(item(id)),next,total`
+  to transfer track IDs only (~0.8 KB/page vs ~44.6 KB unfiltered — verified
+  live). If a playlist reports tracks but the filtered response yields zero
+  IDs, `playlists_service.PlaylistIntegrityError` is raised and **fails the
+  whole build** rather than being treated as an ordinary per-playlist failure
+  — that pattern means the Spotify `fields` expression broke, and swallowing
+  it the way an ordinary playlist read failure is swallowed would silently
+  report the user's entire library as uncategorized instead of failing
+  loudly.
+- **Single-flight cold builds**: concurrent requests that arrive with no index
+  on disk join one in-progress build via a `threading.Event`-backed record
+  rather than polling; a build failure propagates to every waiter instead of
+  each one hanging to its own timeout.
+- **Freshness**: an index older than 15 minutes
+  (`songs_service._FRESHNESS_WINDOW_SECONDS`) is still served immediately,
+  with a background rebuild kicked off behind it (single-flight — at most one
+  background rebuild runs at a time). A failed background rebuild logs and
+  leaves the previous index intact.
+- **Manual refresh**: `POST /api/songs/refresh` (`songs_service.force_rebuild`)
+  rebuilds synchronously regardless of freshness, for when a change made
+  directly in Spotify needs to be picked up without logging out. Verified live
+  against the real account: filing a song into a playlist directly via the
+  Spotify API, then calling refresh, dropped it from the uncategorized list
+  immediately.
+- **Filing a song** (`songs_service.remove_song_from_index`) corrects the
+  stored index in place — removes the song and preserves the existing
+  `built_at` — rather than triggering a rebuild, since a single known removal
+  doesn't change how stale the rest of the index is.
+- **Single-process assumption**: the in-memory cache and build-coordination
+  state are process-level globals. `render.yaml` and local dev both run one
+  backend worker, so this is safe today; adding workers would let each build
+  its own index independently (wasted quota, not correctness — the atomic
+  write keeps the file itself consistent either way).
 
 ## 5. Frontend Behavior
 
@@ -118,6 +182,7 @@ Notable endpoints include trailing slashes for some routes:
 - On mount, a single `runLoad(offset, limit, isInitial)` orchestrator drives loading: it creates an `AbortController`, calls `fetchSongs` (and `fetchTotalSongs` when `isInitial`), and starts two timers — a 4s "slow" notice and a 25s hard timeout that aborts the request and switches the page into a retry state (`Try again` button, calls `runLoad` again with the same offset/limit/isInitial via a ref). `PlaylistsProvider` fetches playlists independently, same as before.
 - While loading, the page renders skeleton song rows (`SongCardSkeleton`) instead of a bare spinner; the "Scanning your liked songs…" notice appears only after the 4s slow-load threshold.
 - Uses local state pagination with selectable limits (10/25/50); the limit `Select` has an explicit `aria-label="Songs per page"` since its `SelectLabel` lives inside the closed popup and doesn't name the trigger.
+- A "Refresh from Spotify" button (`handleForceRefresh`) posts to `POST /api/songs/refresh`, then re-fetches the current page of songs and the total. Doesn't route through the skeleton-loading `runLoad` pipeline — the currently displayed songs stay on screen with the button showing "Refreshing…" and disabled, rather than flashing the whole page to a loading state. Reports success/failure through the shared toast; on failure the displayed songs are left unchanged (the refresh-endpoint call is what's guarded — a failure there means `fetchSongs`/`fetchTotalSongs` are never called).
 - `SongCard`:
 1. Album art renders as a real `next/image` (hero-sized, `alt` set to `"{album} cover art"`); the play/pause control is a small overlay badge in the corner rather than a permanent 40%-opacity scrim across the whole image.
 2. Playback toggle calls start/stop endpoints; failures/successes go through the shared toast, not a local one.
@@ -161,22 +226,19 @@ Deployment config:
 ## 8. Test Coverage and Current Test Status
 
 ## Backend tests
-- Present: `api/tests/` with 13 files and 49 test functions.
-- Scope includes routers, services, model schema construction, OAuth logout behavior, and token refresh logic.
-- Local execution status in this environment:
-1. `pytest` command missing.
-2. `python3 -m pytest` fails: `No module named pytest`.
-- Result: backend tests were not executed in this audit environment.
+- Present: `api/tests/` with 15 files and 136 test functions (added `test_service_http_client.py`; extended `test_service_songs.py`, `test_service_playlists.py`, `test_router_songs.py`, `test_router_playlists.py`, `test_service_users.py` for the uncategorized-songs load speedup — parallel build, envelope storage/atomic writes, single-flight build coordination, freshness/background refresh, the `PlaylistIntegrityError` guard, and the refresh endpoint).
+- Scope includes routers, services, model schema construction, OAuth logout behavior, token refresh logic, and (as of this pass) threading-timing paths tested with `threading.Event`/`Barrier` synchronization rather than real sleeps.
+- Local execution: `cd api && python3 -m pytest` (via `venv/bin/python -m pytest`) — 136 passed, 98% overall statement coverage (`songs_service.py` 98%, `playlists_service.py` 99%, `http_client.py` 100%), above the project's 90% target. The 5 uncovered lines are defensive edge cases (a file vanishing mid-read between `stat` and `open`; cleanup-of-cleanup failure paths).
 
 ## Frontend tests
-- Present: 26 Jest test files under `ui/src`.
+- Present: 24 Jest test files under `ui/src`.
 - Local execution command: `npm test -- --runInBand`.
 - Result:
 1. 24 suites total.
 2. 24 passed.
 3. 0 failed.
-4. 94 tests total: 94 passed, 0 failed.
-- Coverage (`npm test -- --coverage`): ~95% statements / ~87% branches / ~95% functions / ~96% lines, above the enforced 85% `jest.config.js` threshold. `app/organize/page.tsx` branch coverage (73%) is the weakest spot — the uncovered lines are pre-existing pagination-link edge cases, not the new load/timeout/retry logic (which is covered).
+4. 98 tests total: 98 passed, 0 failed (added 4 tests for the organize page's "Refresh from Spotify" control).
+- Coverage (`npm test -- --coverage`): ~95% statements / ~86% branches / ~95% functions / ~96% lines, above the enforced 85% `jest.config.js` threshold. `app/organize/page.tsx` branch coverage remains the weakest spot — the uncovered lines are the same pre-existing pagination-link edge cases as before this pass (`handleOffsetChange`'s boundary clamps, individual pagination-link click handlers); the new `handleForceRefresh` path is fully covered.
 
 Non-fatal test console warnings currently observed:
 - DOM nesting warning in `layout.test.tsx` (`<html>` inside RTL container) — expected, since that's the one place in the app the real `<html>` tag renders.
@@ -184,12 +246,15 @@ Non-fatal test console warnings currently observed:
 ## 9. Key Gaps and Risks (As of This Snapshot)
 
 1. File-based state and single-user assumptions remain.
-2. Cache invalidation is partial; uncategorized cache updates only on add-song and manual file lifecycle.
-3. `/api/songs/total` can still block up to 30s server-side before the cache file appears. The frontend now applies a client-side 25s timeout with a skeleton-loading UI and a retry action (see `ui/src/app/organize/page.tsx`), but the backend's own blocking wait is unchanged — out of scope for this remediation pass, tracked for a future backend-side fix (e.g. a 202-style "still indexing" response).
-4. Playback error handling returns success HTTP status in failure branches.
-5. Logout client flow has no explicit error handling around failed network call before route push (documented by an `app-shell.test.tsx` case).
-6. Runtime artifact files are currently untracked but not ignored (`api/user_id.json`, `api/all_uncategorized_songs.json`).
-7. No playlist search/filter in the add-to-playlist dialog — with a large playlist library, pinning only helps the top few; deferred from the audit remediation as a feature, not a fix.
+2. Playback error handling returns success HTTP status in failure branches.
+3. Logout client flow has no explicit error handling around failed network call before route push (documented by an `app-shell.test.tsx` case).
+4. Runtime artifact files are currently untracked but not ignored (`api/user_id.json`, `api/all_uncategorized_songs.json`).
+5. No playlist search/filter in the add-to-playlist dialog — with a large playlist library, pinning only helps the top few; deferred from the audit remediation as a feature, not a fix.
+6. Process-level state (the in-memory index cache, cold-build coordination, background-refresh guard) assumes a single backend worker — see `songs_service.py` note in §4. `render.yaml` and local dev both run one worker today, so this holds, but it's an assumption to keep in mind before scaling the backend horizontally.
+
+**Closed by the uncategorized-songs load speedup (2026-08-23):**
+- ~~Cache invalidation is partial; uncategorized cache updates only on add-song and manual file lifecycle.~~ A stale index (>15 min) now triggers a background rebuild automatically, and `POST /api/songs/refresh` lets the user force one on demand — verified live against the real account (see §4).
+- ~~`/api/songs/total` can still block up to 30s server-side before the cache file appears.~~ Cold builds now complete in ~2.3s against the current library (down from ~15–21s), measured live; the frontend's 25s timeout and skeleton UI remain in place as a safety net but are no longer load-bearing for the common case.
 
 ## 10. Practical Runbook
 
