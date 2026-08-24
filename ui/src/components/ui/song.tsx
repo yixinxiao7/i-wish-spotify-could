@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import Image from 'next/image';
-import { Music } from 'lucide-react';
+import { Music, Trash2 } from 'lucide-react';
 
 import {
 	Card,
@@ -44,6 +44,8 @@ interface SongProps {
 	onSuccess?: (message: string) => void
 	/** Optional override; when omitted, playlists come from PlaylistsProvider. */
 	allPlaylists?: Playlist[]
+	/** Renders a trash control when present (e.g. playlist cleanup). */
+	onRemove?: (songId: string) => void
 	className?: string
 }
 
@@ -56,6 +58,7 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 	onRefresh,
 	onSuccess,
 	allPlaylists,
+	onRemove,
 	className = ""
 }) => {
 	const [selectedPlaylists, setSelectedPlaylists] = useState<Playlist[]>([]);
@@ -219,40 +222,53 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 								</CardDescription>
 							</div>
 						</div>
-						<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-							<DialogTrigger asChild>
-								<Button
-									size="sm"
-									variant="brand"
-									className="h-11 w-full whitespace-nowrap px-4 text-xs font-semibold sm:h-10 sm:w-auto sm:min-w-[150px] sm:max-w-[150px]">
-									add to playlists
-								</Button>
-							</DialogTrigger>
-							<DialogContent className="flex max-h-[85vh] flex-col overflow-hidden">
-								<DialogHeader className="flex-shrink-0">
-									<DialogTitle>Playlists</DialogTitle>
-								</DialogHeader>
-								<DialogDescription className="min-h-0 flex-1 overflow-y-auto pr-3" asChild>
-									<div>
-										<PlaylistList
-											playlists={allPlaylists}
-											selectedIds={selectedPlaylistIds}
-											onToggleSelect={updateSelectedPlaylists}
-										/>
-									</div>
-								</DialogDescription>
-								<DialogFooter className="flex w-full flex-shrink-0 justify-center">
+						<div className="flex items-center gap-2 sm:gap-3">
+							<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+								<DialogTrigger asChild>
 									<Button
-										onClick={addSongToPlaylists}
-										disabled={addingToPlaylist}
+										size="sm"
 										variant="brand"
-										className="h-11 w-full text-base font-semibold sm:h-10 sm:w-auto sm:min-w-[170px] sm:max-w-[170px]"
-									>
-										{addingToPlaylist ? "adding..." : "add"}
+										className="h-11 w-full whitespace-nowrap px-4 text-xs font-semibold sm:h-10 sm:w-auto sm:min-w-[150px] sm:max-w-[150px]">
+										add to playlists
 									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
+								</DialogTrigger>
+								<DialogContent className="flex max-h-[85vh] flex-col overflow-hidden">
+									<DialogHeader className="flex-shrink-0">
+										<DialogTitle>Playlists</DialogTitle>
+									</DialogHeader>
+									<DialogDescription className="min-h-0 flex-1 overflow-y-auto pr-3" asChild>
+										<div>
+											<PlaylistList
+												playlists={allPlaylists}
+												selectedIds={selectedPlaylistIds}
+												onToggleSelect={updateSelectedPlaylists}
+											/>
+										</div>
+									</DialogDescription>
+									<DialogFooter className="flex w-full flex-shrink-0 justify-center">
+										<Button
+											onClick={addSongToPlaylists}
+											disabled={addingToPlaylist}
+											variant="brand"
+											className="h-11 w-full text-base font-semibold sm:h-10 sm:w-auto sm:min-w-[170px] sm:max-w-[170px]"
+										>
+											{addingToPlaylist ? "adding..." : "add"}
+										</Button>
+									</DialogFooter>
+								</DialogContent>
+							</Dialog>
+							{onRemove && (
+								<Button
+									size="icon"
+									variant="brandMuted"
+									onClick={() => onRemove(id)}
+									aria-label={`Remove ${name}`}
+									className="h-11 w-11 flex-shrink-0 rounded-full p-0 sm:h-10 sm:w-10"
+								>
+									<Trash2 className="h-4 w-4" aria-hidden="true" />
+								</Button>
+							)}
+						</div>
 					</div>
 				</CardHeader>
 			</Card>

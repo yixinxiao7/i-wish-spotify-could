@@ -222,3 +222,46 @@ def test_add_song_to_playlists_403_raises_permission_error(monkeypatch):
     )
     with pytest.raises(PermissionError):
         playlists_service.add_song_to_playlists("token", "song-1", ["p1"])
+
+
+# ---------------------------------------------------------------------------
+# remove_song_from_playlist
+# ---------------------------------------------------------------------------
+
+
+def test_remove_song_from_playlist_sends_expected_request_shape(monkeypatch):
+    calls = []
+
+    def fake_delete(url, headers=None, json=None):
+        calls.append((url, json))
+        return DummyResponse(200, {"snapshot_id": "new"})
+
+    monkeypatch.setattr(playlists_service, "spotify_delete", fake_delete)
+    playlists_service.remove_song_from_playlist("token", "p1", "song-1")
+
+    assert len(calls) == 1
+    url, body = calls[0]
+    assert url == "https://api.spotify.com/v1/playlists/p1/items"
+    assert body == {"items": [{"uri": "spotify:track:song-1"}]}
+    assert "snapshot_id" not in body
+
+
+def test_remove_song_from_playlist_already_absent_still_succeeds(monkeypatch):
+    # Spotify's removal is idempotent by content: a 200 with an unchanged
+    # snapshot for a URI that was never present is treated as success.
+    monkeypatch.setattr(
+        playlists_service, "spotify_delete", lambda *a, **k: DummyResponse(200, {"snapshot_id": "unchanged"})
+    )
+    playlists_service.remove_song_from_playlist("token", "p1", "song-1")  # must not raise
+
+
+def test_remove_song_from_playlist_403_raises_permission_error(monkeypatch):
+    monkeypatch.setattr(playlists_service, "spotify_delete", lambda *a, **k: DummyResponse(403, text="nope"))
+    with pytest.raises(PermissionError):
+        playlists_service.remove_song_from_playlist("token", "p1", "song-1")
+
+
+def test_remove_song_from_playlist_other_error(monkeypatch):
+    monkeypatch.setattr(playlists_service, "spotify_delete", lambda *a, **k: DummyResponse(400, {"error": "bad"}))
+    with pytest.raises(Exception, match="Error removing song song-1"):
+        playlists_service.remove_song_from_playlist("token", "p1", "song-1")

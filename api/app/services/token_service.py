@@ -58,3 +58,25 @@ def get_valid_token() -> str:
         json.dump(token_data, f)
 
     return token_data["access_token"]
+
+
+def get_granted_scopes() -> set:
+    """
+    Read the space-separated `scope` field from stored token state, so a
+    feature can check whether the current session was granted a given
+    scope without spending a request. Tolerant of the same failure modes
+    as the rest of local state: a missing file, unreadable JSON, or an
+    absent/empty scope field all report no granted scopes rather than
+    raising, so a stale or partial token never breaks an unrelated check.
+    Returns:
+        set: Granted scope names, or an empty set if none are known.
+    """
+    if not os.path.exists(TOKEN_PATH):
+        return set()
+    try:
+        with open(TOKEN_PATH, "r") as f:
+            token_data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return set()
+    scope = token_data.get("scope") or ""
+    return set(scope.split())

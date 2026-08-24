@@ -18,6 +18,8 @@ interface PlaylistListProps {
   selectedIds?: Set<string>;
   /** Called when a row's selection checkbox is toggled. Selection checkbox is omitted if absent. */
   onToggleSelect?: (playlist: Playlist, checked: boolean) => void;
+  /** Called when a row is activated as a navigation target. Row label becomes a button if present. */
+  onSelectPlaylist?: (playlist: Playlist) => void;
   emptyMessage?: string;
 }
 
@@ -26,6 +28,7 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
   onTogglePin: onTogglePinProp,
   selectedIds,
   onToggleSelect,
+  onSelectPlaylist,
   emptyMessage = "No playlists available",
 }) => {
   const context = useContext(PlaylistsContext);
@@ -133,12 +136,22 @@ export const PlaylistList: React.FC<PlaylistListProps> = ({
           }
         />
       )}
-      <label
-        htmlFor={onToggleSelect ? `playlist-${playlist.id}` : undefined}
-        className="truncate flex-1"
-      >
-        {playlist.name}
-      </label>
+      {onSelectPlaylist ? (
+        <button
+          type="button"
+          onClick={() => onSelectPlaylist(playlist)}
+          className="truncate flex-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {playlist.name}
+        </button>
+      ) : (
+        <label
+          htmlFor={onToggleSelect ? `playlist-${playlist.id}` : undefined}
+          className="truncate flex-1"
+        >
+          {playlist.name}
+        </label>
+      )}
       <button
         type="button"
         aria-pressed={!!playlist.pinned}

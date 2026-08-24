@@ -19,8 +19,19 @@ describe("Landing page", () => {
     expect(pushMock).toHaveBeenCalledWith("/organize");
   });
 
-  it("renders coming soon button", () => {
+  it("routes to clean from the clean up playlists button", () => {
     render(<Landing />);
-    expect(screen.getByRole("button", { name: "coming soon..." })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "clean up playlists" }));
+    expect(pushMock).toHaveBeenCalledWith("/clean");
+  });
+
+  it("both tool buttons carry a description distinguishing them", () => {
+    render(<Landing />);
+    expect(
+      screen.getByText(/sort liked songs that aren't in any playlist/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/find songs you've stopped listening to/i)
+    ).toBeInTheDocument();
   });
 });

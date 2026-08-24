@@ -2,7 +2,7 @@ import json
 
 
 LOGOUT_URL = "/api/oauth/logout"
-MANAGED_FILES = ("token.json", "user_id.json", "all_uncategorized_songs.json", "pinned_playlists.json")
+MANAGED_FILES = ("token.json", "user_id.json", "all_uncategorized_songs.json", "pinned_playlists.json", "track_affinity.json")
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

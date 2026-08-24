@@ -599,6 +599,43 @@ def test_remove_song_from_index_is_a_noop_when_song_not_present():
 
 
 # ---------------------------------------------------------------------------
+# mark_index_stale
+# ---------------------------------------------------------------------------
+
+
+def test_mark_index_stale_preserves_songs_and_leaves_index_readable():
+    songs_service._write_index_file([{"id": "a"}, {"id": "b"}], time.time())
+    songs_service.mark_index_stale()
+    built_at, songs = songs_service._get_cached_index()
+    assert songs == [{"id": "a"}, {"id": "b"}]
+    assert built_at == 0.0
+
+
+def test_mark_index_stale_causes_next_read_to_serve_stale_and_refresh(monkeypatch):
+    songs_service._write_index_file([{"id": "old"}], time.time())
+    songs_service.mark_index_stale()
+
+    calls = []
+
+    def fake_perform_build(token):
+        calls.append(token)
+        songs_service._write_index_file([{"id": "new"}], time.time())
+        return [{"id": "new"}]
+
+    monkeypatch.setattr(songs_service, "_perform_build", fake_perform_build)
+    monkeypatch.setattr(songs_service, "_spawn_daemon", lambda target: target())
+
+    songs = songs_service.get_uncategorized_songs("token", 0, 10)
+    assert songs == [{"id": "old"}]  # served immediately, without blocking
+    assert calls == ["token"]
+
+
+def test_mark_index_stale_is_a_noop_when_no_index_exists():
+    songs_service.mark_index_stale()  # must not raise
+    assert songs_service._get_cached_index() is None
+
+
+# ---------------------------------------------------------------------------
 # get_total_uncategorized_songs
 # ---------------------------------------------------------------------------
 

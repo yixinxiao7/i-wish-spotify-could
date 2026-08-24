@@ -220,5 +220,11 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Server-side runtime state. Regenerated on demand, per-user, and in the
+# case of user_id.json contains the account's Spotify user id — none of it
+# belongs in version control.
 token.json
 pinned_playlists.json
+track_affinity.json
+all_uncategorized_songs.json
+user_id.json

@@ -19,3 +19,6 @@ class PlaybackModel(BaseModel):
 class PinPostData(BaseModel):
     playlistId: str = Field(min_length=1)
     pinned: bool
+
+class RemoveSongData(BaseModel):
+    songId: str = Field(min_length=1)

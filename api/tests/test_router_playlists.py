@@ -3,6 +3,7 @@ import time
 
 from app.routers import playlists
 from app.services import songs_service
+from app.services.http_client import SpotifyRateLimitedError
 
 
 def test_get_playlists(client, monkeypatch):
@@ -140,4 +141,219 @@ def test_post_song_to_playlists_error_returns_500(client, monkeypatch):
 
 def test_post_song_to_playlists_validation(client):
     response = client.post("/api/playlists/add-song", json={"songId": "s1"})
+    assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# GET /api/playlists/{playlist_id}/songs
+# ---------------------------------------------------------------------------
+
+
+def _stub_owned_playlists(monkeypatch, playlists_list):
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+    monkeypatch.setattr(playlists, "get_created_playlists", lambda token: playlists_list)
+
+
+def test_get_playlist_songs_happy_path(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Mine"}])
+    monkeypatch.setattr(
+        playlists,
+        "get_affinity",
+        lambda token: {"available": True, "reason": None, "tiers": {"a": 3}},
+    )
+    monkeypatch.setattr(
+        playlists,
+        "get_playlist_songs_page",
+        lambda token, playlist_id, offset, limit, sort, affinity_tiers=None: (
+            [{"id": "a", "name": "A", "artists": "", "album": "", "album_pic_url": None, "added_at": "x"}],
+            1,
+        ),
+    )
+
+    response = client.get("/api/playlists/p1/songs")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["playlist"] == {"id": "p1", "name": "Mine"}
+    assert body["total"] == 1
+    assert body["songs"][0]["id"] == "a"
+    assert body["affinity"] == {"available": True, "reason": None}
+
+
+def test_get_playlist_songs_unknown_playlist_returns_404(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "other", "name": "Other"}])
+    response = client.get("/api/playlists/p1/songs")
+    assert response.status_code == 404
+
+
+def test_get_playlist_songs_not_owned_returns_404(client, monkeypatch):
+    # get_created_playlists only ever returns owned playlists, so a
+    # followed-but-not-owned playlist simply never appears in the list.
+    _stub_owned_playlists(monkeypatch, [])
+    response = client.get("/api/playlists/not-owned/songs")
+    assert response.status_code == 404
+
+
+def test_get_playlist_songs_unknown_sort_returns_400(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Mine"}])
+    response = client.get("/api/playlists/p1/songs?sort=bogus")
+    assert response.status_code == 400
+
+
+def test_get_playlist_songs_affinity_unavailable_is_surfaced(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Mine"}])
+    monkeypatch.setattr(
+        playlists, "get_affinity", lambda token: {"available": False, "reason": "missing_scope", "tiers": None}
+    )
+    monkeypatch.setattr(
+        playlists,
+        "get_playlist_songs_page",
+        lambda token, playlist_id, offset, limit, sort, affinity_tiers=None: ([], 0),
+    )
+    response = client.get("/api/playlists/p1/songs")
+    assert response.status_code == 200
+    assert response.json()["affinity"] == {"available": False, "reason": "missing_scope"}
+
+
+def test_get_playlist_songs_permission_error_returns_403(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Mine"}])
+    monkeypatch.setattr(playlists, "get_affinity", lambda token: {"available": True, "reason": None, "tiers": {}})
+
+    def boom(*a, **k):
+        raise PermissionError("nope")
+
+    monkeypatch.setattr(playlists, "get_playlist_songs_page", boom)
+    response = client.get("/api/playlists/p1/songs")
+    assert response.status_code == 403
+
+
+def test_get_playlists_rate_limited_returns_429_with_a_clear_message(client, monkeypatch):
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+
+    def boom(token):
+        raise SpotifyRateLimitedError(3858)
+
+    monkeypatch.setattr(playlists, "get_created_playlists", boom)
+    response = client.get("/api/playlists/")
+    assert response.status_code == 429
+    assert "rate limiting" in response.json()["detail"]
+
+
+def test_get_playlists_other_failure_returns_502_not_bare_500(client, monkeypatch):
+    # A bare 500 is what CORSMiddleware fails to annotate, making the browser
+    # report a CORS violation instead of the real failure.
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+
+    def boom(token):
+        raise RuntimeError("spotify down")
+
+    monkeypatch.setattr(playlists, "get_created_playlists", boom)
+    assert client.get("/api/playlists/").status_code == 502
+
+
+def test_get_playlist_songs_rate_limited_returns_429(client, monkeypatch):
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+
+    def boom(token):
+        raise SpotifyRateLimitedError(3858)
+
+    monkeypatch.setattr(playlists, "get_created_playlists", boom)
+    response = client.get("/api/playlists/p1/songs")
+    assert response.status_code == 429
+
+
+def test_delete_playlist_song_rate_limited_returns_429(client, monkeypatch):
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+
+    def boom(*a, **k):
+        raise SpotifyRateLimitedError(60)
+
+    monkeypatch.setattr(playlists, "remove_song_from_playlist", boom)
+    response = client.request("DELETE", "/api/playlists/p1/songs", json={"songId": "s1"})
+    assert response.status_code == 429
+
+
+def test_add_song_rate_limited_returns_429(client, monkeypatch):
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+
+    def boom(*a, **k):
+        raise SpotifyRateLimitedError(60)
+
+    monkeypatch.setattr(playlists, "add_song_to_playlists", boom)
+    response = client.post("/api/playlists/add-song", json={"songId": "s1", "playlistIds": ["p1"]})
+    assert response.status_code == 429
+
+
+def test_get_playlist_songs_lookup_failure_returns_502_not_404(client, monkeypatch):
+    # A rate limit (or any other Spotify failure) during the ownership
+    # lookup must not be reported as "playlist not found" — that would tell
+    # the user their playlist is gone when the real cause is transient.
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+
+    def boom(token):
+        raise Exception("Error: 429 - rate limited")
+
+    monkeypatch.setattr(playlists, "get_created_playlists", boom)
+    response = client.get("/api/playlists/p1/songs")
+    assert response.status_code == 502
+
+
+def test_get_playlist_songs_load_failure_returns_502(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Mine"}])
+    monkeypatch.setattr(playlists, "get_affinity", lambda token: {"available": True, "reason": None, "tiers": {}})
+
+    def boom(*a, **k):
+        raise RuntimeError("spotify down")
+
+    monkeypatch.setattr(playlists, "get_playlist_songs_page", boom)
+    response = client.get("/api/playlists/p1/songs")
+    assert response.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/playlists/{playlist_id}/songs
+# ---------------------------------------------------------------------------
+
+
+def test_delete_playlist_song_success_invalidates_caches(client, monkeypatch):
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+    monkeypatch.setattr(playlists, "remove_song_from_playlist", lambda token, playlist_id, song_id: None)
+
+    invalidated = []
+    monkeypatch.setattr(playlists, "invalidate_playlist_cache", lambda playlist_id: invalidated.append(playlist_id))
+    marked_stale = []
+    monkeypatch.setattr(playlists, "mark_index_stale", lambda: marked_stale.append(True))
+
+    response = client.request(
+        "DELETE", "/api/playlists/p1/songs", json={"songId": "s1"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"message": "Song removed from playlist successfully!"}
+    assert invalidated == ["p1"]
+    assert marked_stale == [True]
+
+
+def test_delete_playlist_song_permission_error_returns_403(client, monkeypatch):
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+
+    def boom(*a, **k):
+        raise PermissionError("nope")
+
+    monkeypatch.setattr(playlists, "remove_song_from_playlist", boom)
+    response = client.request("DELETE", "/api/playlists/p1/songs", json={"songId": "s1"})
+    assert response.status_code == 403
+
+
+def test_delete_playlist_song_failure_returns_502(client, monkeypatch):
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(playlists, "remove_song_from_playlist", boom)
+    response = client.request("DELETE", "/api/playlists/p1/songs", json={"songId": "s1"})
+    assert response.status_code == 502
+
+
+def test_delete_playlist_song_validation(client):
+    response = client.request("DELETE", "/api/playlists/p1/songs", json={})
     assert response.status_code == 422

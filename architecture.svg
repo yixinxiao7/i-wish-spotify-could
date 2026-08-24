@@ -99,8 +99,8 @@
   <polygon points="330,244 346,244 338,231" fill="white"/>
   <text x="354" y="240" font-size="12" font-weight="700" fill="white">Vercel</text>
   <text x="354" y="253" font-size="9" fill="#a5b4fc">Next.js 15 · React 19 · TS</text>
-  <text x="330" y="268" font-size="8.5" fill="#6366f1">Pages: / · /login · /callback · /organize</text>
-  <text x="330" y="280" font-size="8.5" fill="#6366f1">SongCard · PlaylistList · PlaylistsProvider · shadcn/ui</text>
+  <text x="330" y="268" font-size="8.5" fill="#6366f1">Pages: / · /login · /callback · /organize · /clean</text>
+  <text x="330" y="280" font-size="8.5" fill="#6366f1">SongCard · PlaylistList · Providers · shadcn/ui</text>
   <text x="330" y="292" font-size="8.5" fill="#64748b">i-wish-spotify-could.yixinx.com</text>
 
   <!-- ─── RENDER (center-right) ─── -->
@@ -114,8 +114,8 @@
   <circle cx="652" cy="229" r="2" fill="#4ade80"/>
   <text x="666" y="237" font-size="12" font-weight="700" fill="white">Render</text>
   <text x="666" y="250" font-size="9" fill="#7dd3fc">FastAPI 0.115 · Python 3</text>
-  <text x="640" y="265" font-size="8.5" fill="#0ea5e9">oauth · songs (+refresh) · playlists (+pins) · playback</text>
-  <text x="640" y="277" font-size="8.5" fill="#0ea5e9">token.json · user_id.json · songs.json (v2) · pins.json</text>
+  <text x="640" y="265" font-size="8" fill="#0ea5e9">oauth · songs · playlists (+pins,+songs,+affinity) · playback</text>
+  <text x="640" y="277" font-size="8" fill="#0ea5e9">token.json · user_id · songs.json · pins.json · affinity.json</text>
   <text x="640" y="289" font-size="8" fill="#64748b">i-wish-spotify-could-api.onrender.com</text>
   <text x="640" y="301" font-size="8.5" fill="#64748b">GET+HEAD /health · Free tier</text>
 
@@ -131,7 +131,7 @@
   <path d="M512,493 Q518,490 524,493" stroke="#1db954" stroke-width="1.5" fill="none"/>
   <text x="538" y="483" font-size="12" font-weight="700" fill="#1db954">Spotify API</text>
   <text x="538" y="496" font-size="9" fill="#4ade80">OAuth 2.0 · Liked Songs</text>
-  <text x="510" y="512" font-size="8.5" fill="#166534">Playlists · Playback · User Profile</text>
+  <text x="510" y="512" font-size="8.5" fill="#166534">Playlists · Playback · Top Tracks · User Profile</text>
   <text x="510" y="524" font-size="8.5" fill="#166534">Retry on 429 · Token refresh (–60s)</text>
 
   <!-- ─── UPTIMEROBOT (right) ─── -->
@@ -221,11 +221,12 @@
 
   <!-- ─── TECH STACK SUMMARY (bottom right) ─── -->
   <rect x="596" y="598" width="420" height="112" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1"/>
-  <text x="612" y="617" font-size="11" fill="#94a3b8" font-weight="600">KEY BEHAVIORS</text>
-  <text x="612" y="631" font-size="9.5" fill="#64748b">• File-based state: token.json, user_id.json, songs.json, pins.json</text>
-  <text x="612" y="644" font-size="9.5" fill="#64748b">• Token refresh: 60s buffer · Retry-After honored on 429 (8-way pool)</text>
-  <text x="612" y="657" font-size="9.5" fill="#64748b">• Uncategorized-songs index: 8-way parallel build (~2s cold) · 15-min</text>
-  <text x="622" y="669" font-size="9.5" fill="#64748b">freshness window, stale-while-revalidate · manual refresh endpoint</text>
-  <text x="612" y="683" font-size="9.5" fill="#64748b">• Auth gating via sessionStorage · Dark/light theme via next-themes</text>
-  <text x="612" y="696" font-size="9.5" fill="#64748b">• Pinned playlists float to top · OAuth redirect_uri allowlist</text>
+  <text x="612" y="614" font-size="11" fill="#94a3b8" font-weight="600">KEY BEHAVIORS</text>
+  <text x="612" y="627" font-size="9" fill="#64748b">• File-based state: token/user_id/songs/pins/affinity .json</text>
+  <text x="612" y="639" font-size="9" fill="#64748b">• Token refresh: 60s buffer · Retry-After honored on 429 (8-way pool)</text>
+  <text x="612" y="651" font-size="9" fill="#64748b">• Uncategorized index: 8-way parallel build (~2s cold) · 15-min stale-</text>
+  <text x="622" y="662" font-size="9" fill="#64748b">while-revalidate · manual refresh endpoint</text>
+  <text x="612" y="675" font-size="9" fill="#64748b">• Cleanup: sort by added/least-listened (top-tracks affinity, 4 tiers,</text>
+  <text x="622" y="686" font-size="9" fill="#64748b">24h cache) · removal deferred 5s behind an undo toast</text>
+  <text x="612" y="698" font-size="9" fill="#64748b">• Auth gating via sessionStorage · Pinned playlists float to top</text>
 </svg>

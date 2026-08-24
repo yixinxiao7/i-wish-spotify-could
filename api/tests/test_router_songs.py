@@ -1,4 +1,5 @@
 from app.routers import songs
+from app.services.http_client import SpotifyRateLimitedError
 
 
 def test_get_total_songs(client, monkeypatch):
@@ -60,3 +61,58 @@ def test_post_refresh_songs_failure_returns_error_status(client, monkeypatch):
     response = client.post("/api/songs/refresh")
     assert response.status_code == 502
     assert response.json()["detail"] == "Failed to refresh uncategorized songs."
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting and load failures surface as real statuses, not bare 500s
+# ---------------------------------------------------------------------------
+
+
+def test_get_songs_rate_limited_returns_429(client, monkeypatch):
+    monkeypatch.setattr(songs, "get_valid_token", lambda: "token")
+
+    def boom(token, offset, limit):
+        raise SpotifyRateLimitedError(3858)
+
+    monkeypatch.setattr(songs, "get_uncategorized_songs", boom)
+    response = client.get("/api/songs/?offset=0&limit=10")
+    assert response.status_code == 429
+    assert "rate limiting" in response.json()["detail"]
+
+
+def test_get_songs_other_failure_returns_502_not_bare_500(client, monkeypatch):
+    # The frontend renders its empty state on any failed load, so a bare 500
+    # here tells the user their library is empty rather than that it failed.
+    monkeypatch.setattr(songs, "get_valid_token", lambda: "token")
+
+    def boom(token, offset, limit):
+        raise RuntimeError("spotify down")
+
+    monkeypatch.setattr(songs, "get_uncategorized_songs", boom)
+    assert client.get("/api/songs/?offset=0&limit=10").status_code == 502
+
+
+def test_get_total_songs_rate_limited_returns_429(client, monkeypatch):
+    def boom():
+        raise SpotifyRateLimitedError(3858)
+
+    monkeypatch.setattr(songs, "get_total_uncategorized_songs", boom)
+    assert client.get("/api/songs/total").status_code == 429
+
+
+def test_get_total_songs_other_failure_returns_502(client, monkeypatch):
+    def boom():
+        raise RuntimeError("timed out")
+
+    monkeypatch.setattr(songs, "get_total_uncategorized_songs", boom)
+    assert client.get("/api/songs/total").status_code == 502
+
+
+def test_refresh_rate_limited_returns_429(client, monkeypatch):
+    monkeypatch.setattr(songs, "get_valid_token", lambda: "token")
+
+    def boom(token):
+        raise SpotifyRateLimitedError(3858)
+
+    monkeypatch.setattr(songs, "force_rebuild", boom)
+    assert client.post("/api/songs/refresh").status_code == 429

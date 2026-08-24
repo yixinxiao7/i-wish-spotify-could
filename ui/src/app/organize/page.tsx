@@ -39,6 +39,20 @@ import {
   SongCard
 } from "@/components/ui/song"
 
+const GENERIC_LOAD_ERROR = "Failed to load songs. Please try again.";
+
+// Prefer the server's own explanation (notably its rate-limit message, which
+// tells the user to wait rather than retry immediately) over a generic one.
+async function describeFailure(response: Response): Promise<string> {
+  try {
+    const body = await response.json();
+    if (body?.detail) return body.detail;
+  } catch {
+    // Non-JSON error body; fall through to the generic message.
+  }
+  return GENERIC_LOAD_ERROR;
+}
+
 // A first-time visitor's cache can take a while to build server-side; give
 // the request room to finish before treating it as stuck.
 const LOAD_TIMEOUT_MS = 25000;
@@ -74,6 +88,7 @@ const SongsPage: React.FC = () => {
     const [offset, setOffset] = useState<number>(0);
     const [limit, setLimit] = useState<number>(10);
     const [timedOut, setTimedOut] = useState<boolean>(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [showSlowNotice, setShowSlowNotice] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const { showToast } = useToast();
@@ -108,14 +123,16 @@ const SongsPage: React.FC = () => {
           const data = await response.json();
           setTotal(data.total);
         } else {
-          throw new Error("Failed to fetch total songs");
+          throw new Error(await describeFailure(response));
         }
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         console.error("Error fetching total songs:", error);
-        showToast("Failed to load song count. Please try refreshing.", 'error');
+        // The songs fetch runs alongside this one and reports the same
+        // underlying failure through the page's error state, so staying
+        // quiet here avoids toasting the identical message twice.
       }
-    }, [showToast]);
+    }, []);
 
     const fetchSongs = useCallback(async (fetchOffset: number, fetchLimit: number, signal: AbortSignal) => {
       const params = new URLSearchParams({
@@ -137,13 +154,18 @@ const SongsPage: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           setSongs(data.songs);
+          setLoadError(null);
         } else {
-          throw new Error("Failed to fetch songs");
+          throw new Error(await describeFailure(response));
         }
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         console.error("Error fetching songs:", error);
-        showToast("Failed to load songs. Please try refreshing.", 'error');
+        // Record the failure separately from the song list. Without this an
+        // empty list reads as "nothing to categorize", so a failed load
+        // renders as a congratulatory empty state instead of an error.
+        setLoadError((error as Error).message || GENERIC_LOAD_ERROR);
+        showToast((error as Error).message || GENERIC_LOAD_ERROR, 'error');
       }
     }, [showToast]);
 
@@ -156,6 +178,7 @@ const SongsPage: React.FC = () => {
 
       setTimedOut(false);
       setShowSlowNotice(false);
+      setLoadError(null);
       setLoading(true);
 
       slowTimerRef.current = setTimeout(() => setShowSlowNotice(true), SLOW_NOTICE_MS);
@@ -294,7 +317,14 @@ const SongsPage: React.FC = () => {
           {isRefreshing ? "Refreshing…" : "Refresh from Spotify"}
         </Button>
         <div className="flex flex-col items-center w-full gap-6">
-          {songs.length === 0 ? (
+          {loadError ? (
+            <div className="flex w-full flex-col items-center gap-4 py-10 text-center" role="alert">
+              <p className="max-w-[42ch] text-sm text-brand-muted">{loadError}</p>
+              <Button onClick={retryLoad} variant="brand">
+                Try again
+              </Button>
+            </div>
+          ) : songs.length === 0 ? (
             <p className="py-10 text-center text-brand-muted">
               No uncategorized songs found. All your liked songs are already in playlists!
             </p>

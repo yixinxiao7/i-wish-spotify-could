@@ -3,7 +3,7 @@ import json
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.services.users_services import get_current_user_id
-from app.services.http_client import spotify_get, spotify_post, CONCURRENCY_CEILING
+from app.services.http_client import spotify_get, spotify_post, spotify_delete, CONCURRENCY_CEILING
 
 _PLAYLIST_ITEMS_PAGE_SIZE = 100
 _PLAYLIST_ITEMS_FIELDS = "items(item(id)),next,total"
@@ -217,10 +217,49 @@ def add_song_to_playlists(access_token: str, song_id: str, playlist_ids: list):
             future.result()
 
 
+def remove_song_from_playlist(access_token: str, playlist_id: str, song_id: str):
+    '''
+    Remove a song from a playlist. Spotify's removal endpoint addresses a
+    song by URI rather than position, so this removes every occurrence of
+    the song in the playlist.
+
+    Deliberately omits `snapshot_id`: the cached playlist state this call
+    is triggered from may be minutes old, and sending a snapshot from it
+    could reject a removal the user just asked for (or apply it against a
+    stale view) if the playlist changed elsewhere in the meantime.
+    Omitting it means "remove this song as the playlist stands right now".
+
+    A song that is no longer in the playlist is treated as a successful
+    removal, since the intended end state — the song is not in the
+    playlist — already holds.
+    Args:
+        access_token (str): Spotify access token
+        playlist_id (str): Spotify playlist ID
+        song_id (str): Spotify song ID
+    Returns:
+        None
+    Raises:
+        PermissionError: the app is not permitted to modify this playlist
+    '''
+    url = f"https://api.spotify.com/v1/playlists/{playlist_id}/items"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    data = {"items": [{"uri": f"spotify:track:{song_id}"}]}
+    response = spotify_delete(url, headers=headers, json=data)
+    if response.status_code == 403:
+        raise PermissionError(
+            f"Permission denied removing song from playlist {playlist_id} — re-login may be required"
+        )
+    if response.status_code != 200:
+        raise Exception(
+            f"Error removing song {song_id} from playlist {playlist_id}: {response.status_code} - {response.text}"
+        )
+
+
 __all__ = [
     "get_all_library_playlists",
     "get_created_playlists",
     "get_playlist_songs",
     "add_song_to_playlists",
+    "remove_song_from_playlist",
     "PlaylistIntegrityError",
 ]

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { PlaylistsProvider, usePlaylists } from "./playlists-provider";
 
 const Consumer: React.FC = () => {
-  const { playlists, loading, error, togglePin } = usePlaylists();
+  const { playlists, loading, error, togglePin, refetch } = usePlaylists();
   return (
     <div>
       <span>loading:{String(loading)}</span>
@@ -15,6 +15,7 @@ const Consumer: React.FC = () => {
       </ul>
       <button onClick={() => togglePin("p1", true)}>pin p1</button>
       <button onClick={() => togglePin("p1", false)}>unpin p1</button>
+      <button onClick={() => refetch()}>retry</button>
     </div>
   );
 };
@@ -130,5 +131,31 @@ describe("PlaylistsProvider", () => {
     await waitFor(() =>
       expect(screen.getByText("error:Failed to update pin. Please try again.")).toBeInTheDocument()
     );
+  });
+
+  it("refetch re-runs the fetch and recovers from a prior error", async () => {
+    let shouldFail = true;
+    global.fetch = jest.fn().mockImplementation(() =>
+      shouldFail
+        ? Promise.resolve({ ok: false })
+        : Promise.resolve({
+            ok: true,
+            json: async () => ({ playlists: [{ id: "p1", name: "P1", owner_id: "u1", pinned: false }] }),
+          })
+    );
+
+    render(
+      <PlaylistsProvider>
+        <Consumer />
+      </PlaylistsProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText("error:Failed to load playlists.")).toBeInTheDocument());
+
+    shouldFail = false;
+    screen.getByText("retry").click();
+
+    await waitFor(() => expect(screen.getByText("error:none")).toBeInTheDocument());
+    expect(screen.getByText("p1:false")).toBeInTheDocument();
   });
 });

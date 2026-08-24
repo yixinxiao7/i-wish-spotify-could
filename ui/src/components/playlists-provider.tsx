@@ -10,6 +10,8 @@ interface PlaylistsContextValue {
   loading: boolean;
   error: string | null;
   togglePin: (playlistId: string, pinned: boolean) => Promise<void>;
+  /** Re-runs the initial fetch — e.g. a "try again" action after a failed load. */
+  refetch: () => Promise<void>;
 }
 
 export const PlaylistsContext = createContext<PlaylistsContextValue | null>(null);
@@ -20,6 +22,7 @@ export const PlaylistsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [error, setError] = useState<string | null>(null);
 
   const fetchPlaylists = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await fetch(GET_PLAYLISTS_ENDPOINT, {
         method: "GET",
@@ -33,11 +36,20 @@ export const PlaylistsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setPlaylists(data.playlists);
         setError(null);
       } else {
-        throw new Error("Failed to fetch playlists");
+        // Prefer the server's own explanation — notably its rate-limit
+        // message, which tells the user to wait rather than retry now.
+        let detail = "Failed to load playlists.";
+        try {
+          const body = await response.json();
+          if (body?.detail) detail = body.detail;
+        } catch {
+          // Non-JSON error body; keep the generic message.
+        }
+        throw new Error(detail);
       }
     } catch (err) {
       console.error("Error fetching playlists:", err);
-      setError("Failed to load playlists.");
+      setError((err as Error).message || "Failed to load playlists.");
     } finally {
       setLoading(false);
     }
@@ -85,7 +97,7 @@ export const PlaylistsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   return (
-    <PlaylistsContext.Provider value={{ playlists, loading, error, togglePin }}>
+    <PlaylistsContext.Provider value={{ playlists, loading, error, togglePin, refetch: fetchPlaylists }}>
       {children}
     </PlaylistsContext.Provider>
   );

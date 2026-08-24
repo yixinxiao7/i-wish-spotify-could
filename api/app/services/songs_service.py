@@ -219,6 +219,26 @@ def remove_song_from_index(song_id: str):
     _write_index_file(filtered, built_at)
 
 
+def mark_index_stale():
+    '''
+    Mark the stored index as stale without discarding it, so the existing
+    freshness machinery rebuilds it once in the background on the next
+    read rather than continuing to serve it as current indefinitely.
+
+    Used when an action outside this module's view — removing a song from
+    a playlist — can change what belongs in the index (a liked song can
+    become uncategorized again). Rewrites `built_at` to the epoch rather
+    than forcing an immediate synchronous rebuild, so a burst of removals
+    triggers at most one background rebuild rather than one per removal.
+    A no-op if no valid index currently exists.
+    '''
+    cached = _get_cached_index()
+    if cached is None:
+        return
+    _, songs = cached
+    _write_index_file(songs, 0.0)
+
+
 # ---------------------------------------------------------------------------
 # Building the index from Spotify.
 # ---------------------------------------------------------------------------
@@ -482,5 +502,6 @@ __all__ = [
     "get_uncategorized_songs",
     "get_total_uncategorized_songs",
     "remove_song_from_index",
+    "mark_index_stale",
     "force_rebuild",
 ]
