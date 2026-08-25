@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 import {
@@ -15,15 +15,9 @@ import { PlaylistsProvider } from '@/components/playlists-provider';
 import { useToast } from '@/components/toast-provider';
 import { Button } from '@/components/ui/button';
 
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
+import { SongListPagination } from "@/components/ui/song-list-pagination"
+import { SongCardSkeleton } from "@/components/ui/song-card-skeleton"
+import { clampOffsetPage, resetForLimitChange } from '@/utils/pagination';
 
 import {
   Select,
@@ -59,26 +53,10 @@ const LOAD_TIMEOUT_MS = 25000;
 // After this long without a response, tell the user why — a bare spinner
 // with no explanation reads as broken, not busy.
 const SLOW_NOTICE_MS = 4000;
-
-function SongCardSkeleton() {
-  return (
-    <div
-      className="glass-surface w-full max-w-5xl animate-pulse rounded-xl p-4 sm:p-6"
-      aria-hidden="true"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="flex items-center space-x-3 sm:space-x-4">
-          <div className="h-12 w-12 flex-shrink-0 rounded-full bg-foreground/10 sm:h-16 sm:w-16" />
-          <div className="space-y-2">
-            <div className="h-3 w-32 rounded bg-foreground/10 sm:w-40" />
-            <div className="h-2.5 w-24 rounded bg-foreground/10 sm:w-28" />
-          </div>
-        </div>
-        <div className="h-11 w-full rounded-full bg-foreground/10 sm:h-10 sm:w-[150px]" />
-      </div>
-    </div>
-  );
-}
+// Album art is this page's LCP element. Rows within this count are already
+// in the viewport on first render, so their art loads eagerly; the rest
+// stay lazy.
+const ABOVE_FOLD_ROW_COUNT = 3;
 
 const SongsPage: React.FC = () => {
     const [songs, setSongs] = useState<Song[]>([]);
@@ -245,28 +223,16 @@ const SongsPage: React.FC = () => {
       showToast(msg, 'success');
     }, [showToast]);
 
-    const lastPage = useMemo(() => Math.ceil(total / limit), [total, limit]);
-
     const handleOffsetChange = (newOffset: number, newPage: number) => {
-      if (newOffset < 0) {
-        newOffset = 0;
-      }
-      else if (newOffset > total) {
-        newOffset -= limit;
-      }
-
-      if (newPage < 1) {
-        newPage = 1;
-      }
-      else if (newPage > lastPage) {
-        newPage = lastPage;
-      }
-      setCurrentPage(newPage);
-      runLoad(newOffset, limit, false);
+      const clamped = clampOffsetPage(newOffset, newPage, total, limit);
+      setCurrentPage(clamped.page);
+      runLoad(clamped.offset, limit, false);
     }
 
     const handleLimitChange = (newLimit: number) => {
-      runLoad(offset, newLimit, false);
+      const reset = resetForLimitChange();
+      setCurrentPage(reset.page);
+      runLoad(reset.offset, newLimit, false);
     }
 
     return (
@@ -298,7 +264,7 @@ const SongsPage: React.FC = () => {
               </p>
             )}
             {Array.from({ length: Math.min(limit, 10) }).map((_, i) => (
-              <SongCardSkeleton key={i} />
+              <SongCardSkeleton key={i} className="w-full md:w-3/5 lg:w-2/5" />
             ))}
           </div>
         ) : (
@@ -329,25 +295,28 @@ const SongsPage: React.FC = () => {
               No uncategorized songs found. All your liked songs are already in playlists!
             </p>
           ) : (
-            songs.map((song) => (
-              <SongCard
-                key={song.id}
-                id={song.id}
-                name={song.name}
-                artists={song.artists}
-                album={song.album}
-                album_pic_url={song.album_pic_url}
-                onRefresh={refreshSongs}
-                onSuccess={handleSongSuccess}
-                className="w-full md:w-3/5 lg:w-2/5"
-              />
-            ))
+            <ul className="flex flex-col items-center w-full gap-6" aria-label="Uncategorized songs">
+              {songs.map((song, index) => (
+                <SongCard
+                  key={song.id}
+                  id={song.id}
+                  name={song.name}
+                  artists={song.artists}
+                  album={song.album}
+                  album_pic_url={song.album_pic_url}
+                  onRefresh={refreshSongs}
+                  onSuccess={handleSongSuccess}
+                  priority={index < ABOVE_FOLD_ROW_COUNT}
+                  className="w-full md:w-3/5 lg:w-2/5"
+                />
+              ))}
+            </ul>
           )}
         </div>
         <div className="mt-8 flex flex-col items-center w-full gap-4">
-          <Select onValueChange={(value) => handleLimitChange(Number(value))}>
+          <Select value={String(limit)} onValueChange={(value) => handleLimitChange(Number(value))}>
             <SelectTrigger className="w-[180px]" aria-label="Songs per page">
-              <SelectValue placeholder={limit} />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -358,73 +327,14 @@ const SongsPage: React.FC = () => {
               </SelectGroup>
             </SelectContent>
           </Select>
-          {total > 0 &&
-              <Pagination className="px-6 py-2">
-              <PaginationContent>
-                {currentPage != 1 &&
-                  <>
-                    <PaginationItem>
-                      <PaginationPrevious onClick={() => {
-                        handleOffsetChange(offset-limit, currentPage-1);
-                      }} />
-                    </PaginationItem>
-                    <PaginationItem>
-                      <PaginationLink onClick={() => handleOffsetChange(0, 1)}>
-                        1
-                      </PaginationLink>
-                    </PaginationItem>
-                  </>
-                }
-                {currentPage > 2 &&
-                  <>
-                    <PaginationItem>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                    <PaginationItem>
-                      <PaginationLink onClick={() =>
-                        handleOffsetChange(offset-limit, currentPage-1)}>
-                        {currentPage-1}
-                      </PaginationLink>
-                    </PaginationItem>
-                  </>
-                }
-                  <PaginationItem>
-                    <PaginationLink isActive={true}>
-                      {currentPage}
-                    </PaginationLink>
-                  </PaginationItem>
-                {currentPage < lastPage-1 &&
-                  <>
-                    <PaginationItem>
-                      <PaginationLink onClick={() =>
-                        handleOffsetChange(offset+limit, currentPage+1)}>
-                        {currentPage+1}
-                      </PaginationLink>
-                    </PaginationItem>
-                    <PaginationItem>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                  </>
-                }
-                {currentPage != lastPage &&
-                  <>
-                    <PaginationItem>
-                      <PaginationLink onClick={() => {
-                          handleOffsetChange((lastPage-1)*limit, lastPage);
-                        }}>
-                          {lastPage}
-                      </PaginationLink>
-                    </PaginationItem>
-                    <PaginationItem>
-                      <PaginationNext onClick={() => {
-                        handleOffsetChange(offset+limit, currentPage+1);
-                      }} />
-                    </PaginationItem>
-                  </>
-                }
-              </PaginationContent>
-            </Pagination>
-          }
+          {total > 0 && (
+            <SongListPagination
+              total={total}
+              limit={limit}
+              currentPage={currentPage}
+              onNavigate={handleOffsetChange}
+            />
+          )}
         </div>
           </>
         )}

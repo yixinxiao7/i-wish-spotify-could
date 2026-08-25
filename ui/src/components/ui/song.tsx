@@ -5,7 +5,6 @@ import { Music, Trash2 } from 'lucide-react';
 import {
 	Card,
 	CardHeader,
-	CardTitle,
 	CardDescription,
 } from "./card"
 
@@ -46,6 +45,10 @@ interface SongProps {
 	allPlaylists?: Playlist[]
 	/** Renders a trash control when present (e.g. playlist cleanup). */
 	onRemove?: (songId: string) => void
+	/** Set for rows already within the viewport on first render — album art
+	 * is the hero, and this app's LCP element, so it should not wait behind
+	 * lazy-loading like rows below the fold. */
+	priority?: boolean
 	className?: string
 }
 
@@ -59,6 +62,7 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 	onSuccess,
 	allPlaylists,
 	onRemove,
+	priority = false,
 	className = ""
 }) => {
 	const [selectedPlaylists, setSelectedPlaylists] = useState<Playlist[]>([]);
@@ -170,7 +174,8 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 	};
 
 	return (
-			<Card className={`glass-surface w-full max-w-5xl rounded-xl text-brand-body ${className}`}>
+		<li className={`w-full list-none ${className}`}>
+			<Card className="surface-row w-full max-w-5xl rounded-xl text-brand-body">
 				<CardHeader className="p-4 sm:p-6">
 					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 						<div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
@@ -183,6 +188,8 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 										fill
 										sizes="80px"
 										className="object-cover"
+										priority={priority}
+										loading={priority ? undefined : "lazy"}
 									/>
 								) : (
 									<div className="flex h-full w-full items-center justify-center bg-brand-footer text-brand-muted">
@@ -190,13 +197,19 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 									</div>
 								)}
 								<div className="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/30 group-focus-within:bg-black/30" />
+								{/* A quiet media-control overlay, not the brand fill — "add to
+								    playlists" is this card's one primary action, and album art
+								    is the hero it should not compete with for attention (M6).
+								    Dimmed until hover/focus so it doesn't permanently cover the
+								    art, but never fully invisible so it stays reachable without
+								    a pointer. */}
 								<Button
 									size="icon"
-									variant="brand"
+									variant="ghost"
 									onClick={handlePlaybackToggle}
 									disabled={playbackLoading}
 									aria-label={isPlaying ? "Pause" : "Play"}
-									className="absolute bottom-1 right-1 z-10 h-8 w-8 rounded-full p-0 opacity-90 shadow-md before:absolute before:-inset-1.5 before:content-[''] transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+									className="absolute bottom-1 right-1 z-10 h-8 w-8 rounded-full bg-black/50 p-0 text-white opacity-60 shadow-md before:absolute before:-inset-1.5 before:content-[''] transition-opacity duration-200 hover:bg-black/60 hover:text-white hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
 								>
 									{isPlaying ? (
 										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32" strokeWidth={1.5} stroke="currentColor" className="h-3.5 w-3.5">
@@ -211,10 +224,10 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 								</Button>
 							</div>
 							<div className="min-w-0">
-								<CardTitle className="text-sm font-bold leading-none text-brand-heading sm:text-[1rem] truncate">{name}</CardTitle>
+								<h2 className="text-sm font-bold leading-none text-brand-heading sm:text-[1rem] truncate">{name}</h2>
 								<CardDescription className="mt-1 text-xs text-brand-muted sm:mt-2 sm:text-[.875rem]">
 									<div className="truncate">{artists}</div>
-									{album !== name && (
+									{album !== name && album !== artists && (
 										<div className="truncate">
 											<b className="text-brand-body">{album}</b>
 										</div>
@@ -235,16 +248,15 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 								<DialogContent className="flex max-h-[85vh] flex-col overflow-hidden">
 									<DialogHeader className="flex-shrink-0">
 										<DialogTitle>Playlists</DialogTitle>
+										<DialogDescription>Select one or more playlists to add this song to.</DialogDescription>
 									</DialogHeader>
-									<DialogDescription className="min-h-0 flex-1 overflow-y-auto pr-3" asChild>
-										<div>
-											<PlaylistList
-												playlists={allPlaylists}
-												selectedIds={selectedPlaylistIds}
-												onToggleSelect={updateSelectedPlaylists}
-											/>
-										</div>
-									</DialogDescription>
+									<div className="min-h-0 flex-1 overflow-y-auto pr-3">
+										<PlaylistList
+											playlists={allPlaylists}
+											selectedIds={selectedPlaylistIds}
+											onToggleSelect={updateSelectedPlaylists}
+										/>
+									</div>
 									<DialogFooter className="flex w-full flex-shrink-0 justify-center">
 										<Button
 											onClick={addSongToPlaylists}
@@ -260,7 +272,7 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 							{onRemove && (
 								<Button
 									size="icon"
-									variant="brandMuted"
+									variant="brandDestructive"
 									onClick={() => onRemove(id)}
 									aria-label={`Remove ${name}`}
 									className="h-11 w-11 flex-shrink-0 rounded-full p-0 sm:h-10 sm:w-10"
@@ -272,5 +284,7 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 					</div>
 				</CardHeader>
 			</Card>
+		</li>
 	)
 })
+SongCard.displayName = "SongCard"

@@ -41,7 +41,7 @@ function CleanChooser() {
           You don&apos;t own any playlists yet — create one in Spotify first.
         </p>
       ) : (
-        <div className="glass-surface w-full max-w-xl rounded-xl p-4 sm:p-6">
+        <div className="surface-panel w-full max-w-xl rounded-xl p-4 sm:p-6">
           <PlaylistList onSelectPlaylist={handleSelect} />
         </div>
       )}

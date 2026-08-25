@@ -9,16 +9,9 @@ import { useToast } from '@/components/toast-provider';
 import { PlaylistsProvider } from '@/components/playlists-provider';
 import { Button } from '@/components/ui/button';
 import { SongCard } from '@/components/ui/song';
-
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
+import { SongListPagination } from '@/components/ui/song-list-pagination';
+import { SongCardSkeleton } from '@/components/ui/song-card-skeleton';
+import { clampOffsetPage, resetForLimitChange } from '@/utils/pagination';
 
 import {
   Select,
@@ -39,29 +32,30 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "affinity_asc", label: "Least listened first" },
 ];
 
+// Mirrors GET /api/playlists/{id}/songs's affinity.reason values (see
+// api/app/services/affinity_service.py). Only "missing_scope" is fixed by
+// logging out and back in — telling the user to do that for any other
+// cause sends them to burn their session on a step that won't help.
+function describeAffinityUnavailable(reason: string | null): string {
+  if (reason === "missing_scope") {
+    return "Least-listened sorting needs one more permission — log out and back in to enable it.";
+  }
+  if (reason === "upstream_error") {
+    return "Least-listened sorting is temporarily unavailable — try again later.";
+  }
+  return "Least-listened sorting is unavailable right now.";
+}
+
 // Matches the backend's undo window exactly, so the toast's progress bar
 // and the moment the removal actually fires never disagree.
-const UNDO_WINDOW_MS = 5000;
-
-function SongCardSkeleton() {
-  return (
-    <div
-      className="glass-surface w-full max-w-5xl animate-pulse rounded-xl p-4 sm:p-6"
-      aria-hidden="true"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="flex items-center space-x-3 sm:space-x-4">
-          <div className="h-12 w-12 flex-shrink-0 rounded-full bg-foreground/10 sm:h-16 sm:w-16" />
-          <div className="space-y-2">
-            <div className="h-3 w-32 rounded bg-foreground/10 sm:w-40" />
-            <div className="h-2.5 w-24 rounded bg-foreground/10 sm:w-28" />
-          </div>
-        </div>
-        <div className="h-11 w-full rounded-full bg-foreground/10 sm:h-10 sm:w-[150px]" />
-      </div>
-    </div>
-  );
-}
+const UNDO_WINDOW_MS = 10000;
+// Album art is this page's LCP element. Rows within this count are already
+// in the viewport on first render, so their art loads eagerly.
+const ABOVE_FOLD_ROW_COUNT = 3;
+// A stable reference so React.memo on SongCard isn't defeated by a fresh
+// arrow function on every render — this page has no refresh action of its
+// own, unlike /organize.
+const noop = () => {};
 
 const CleanPlaylistView: React.FC = () => {
   const params = useParams<{ playlistId: string }>();
@@ -82,7 +76,13 @@ const CleanPlaylistView: React.FC = () => {
   const [notFound, setNotFound] = useState(false);
 
   const [pendingRemovalIds, setPendingRemovalIds] = useState<Set<string>>(new Set());
-  const pendingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Each entry's timeoutId is null while paused (hover/focus on its toast —
+  // see handleRemove's onPauseChange) so this map, not a plain id->timeout
+  // map, is what lets the DELETE and the toast's own dismiss clock stay in
+  // lockstep without ever disagreeing about how much time is left.
+  const pendingTimers = useRef<
+    Map<string, { timeoutId: ReturnType<typeof setTimeout> | null; resumedAt: number; remainingMs: number }>
+  >(new Map());
   const pendingToastIds = useRef<Map<string, number>>(new Map());
 
   const fetchPage = useCallback(
@@ -141,8 +141,8 @@ const CleanPlaylistView: React.FC = () => {
   // cleanup on unmount.
   useEffect(() => {
     const flushAllPending = () => {
-      pendingTimers.current.forEach((timeoutId, songId) => {
-        clearTimeout(timeoutId);
+      pendingTimers.current.forEach(({ timeoutId }, songId) => {
+        if (timeoutId !== null) clearTimeout(timeoutId);
         fetch(getPlaylistSongsEndpoint(playlistId), {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
@@ -171,31 +171,21 @@ const CleanPlaylistView: React.FC = () => {
     fetchPage(fetchOffset, fetchLimit, fetchSort);
   };
 
-  const lastPage = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
-
   const handleSortChange = (value: SortKey) => {
-    runLoad(0, limit, value, 1);
+    const reset = resetForLimitChange();
+    runLoad(reset.offset, limit, value, reset.page);
   };
 
   const handleLimitChange = (value: number) => {
-    runLoad(0, value, sort, 1);
+    const reset = resetForLimitChange();
+    runLoad(reset.offset, value, sort, reset.page);
   };
 
-  // Mirrors the organize page's handler, including its boundary clamps, so
-  // both pagination controls behave identically.
+  // Shared with the organize page's handler via clampOffsetPage, so both
+  // pagination controls behave identically.
   const handleOffsetChange = (newOffset: number, newPage: number) => {
-    if (newOffset < 0) {
-      newOffset = 0;
-    } else if (newOffset > total) {
-      newOffset -= limit;
-    }
-
-    if (newPage < 1) {
-      newPage = 1;
-    } else if (newPage > lastPage) {
-      newPage = lastPage;
-    }
-    runLoad(newOffset, limit, sort, newPage);
+    const clamped = clampOffsetPage(newOffset, newPage, total, limit);
+    runLoad(clamped.offset, limit, sort, clamped.page);
   };
 
   const handlePrevPage = () => {
@@ -239,11 +229,11 @@ const CleanPlaylistView: React.FC = () => {
   );
 
   const handleUndo = useCallback((songId: string) => {
-    const timeoutId = pendingTimers.current.get(songId);
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-      pendingTimers.current.delete(songId);
+    const entry = pendingTimers.current.get(songId);
+    if (entry?.timeoutId !== null && entry?.timeoutId !== undefined) {
+      clearTimeout(entry.timeoutId);
     }
+    pendingTimers.current.delete(songId);
     pendingToastIds.current.delete(songId);
     setPendingRemovalIds((prev) => {
       const next = new Set(prev);
@@ -251,6 +241,36 @@ const CleanPlaylistView: React.FC = () => {
       return next;
     });
   }, []);
+
+  // Pauses this song's own DELETE timer in lockstep with its toast's
+  // auto-dismiss clock (wired via handleRemove's onPauseChange), so hover
+  // or focus on the toast can never let the removal fire out from under a
+  // user who is mid-reach for Undo.
+  const pauseRemovalTimer = useCallback((songId: string) => {
+    const entry = pendingTimers.current.get(songId);
+    if (!entry || entry.timeoutId === null) return; // already paused, or gone
+    clearTimeout(entry.timeoutId);
+    const elapsed = Date.now() - entry.resumedAt;
+    pendingTimers.current.set(songId, {
+      timeoutId: null,
+      resumedAt: entry.resumedAt,
+      remainingMs: Math.max(0, entry.remainingMs - elapsed),
+    });
+  }, []);
+
+  const resumeRemovalTimer = useCallback(
+    (songId: string, song: PlaylistSong) => {
+      const entry = pendingTimers.current.get(songId);
+      if (!entry || entry.timeoutId !== null) return; // not paused, or already gone
+      if (entry.remainingMs <= 0) {
+        flushRemoval(song);
+        return;
+      }
+      const timeoutId = setTimeout(() => flushRemoval(song), entry.remainingMs);
+      pendingTimers.current.set(songId, { timeoutId, resumedAt: Date.now(), remainingMs: entry.remainingMs });
+    },
+    [flushRemoval]
+  );
 
   const handleRemove = useCallback(
     (songId: string) => {
@@ -260,16 +280,20 @@ const CleanPlaylistView: React.FC = () => {
       setPendingRemovalIds((prev) => new Set(prev).add(songId));
 
       const timeoutId = setTimeout(() => flushRemoval(song), UNDO_WINDOW_MS);
-      pendingTimers.current.set(songId, timeoutId);
+      pendingTimers.current.set(songId, { timeoutId, resumedAt: Date.now(), remainingMs: UNDO_WINDOW_MS });
 
       const toastId = showToast(`Removed "${song.name}"`, "success", {
         durationMs: UNDO_WINDOW_MS,
         progress: true,
         action: { label: "Undo", onClick: () => handleUndo(songId) },
+        onPauseChange: (paused) => {
+          if (paused) pauseRemovalTimer(songId);
+          else resumeRemovalTimer(songId, song);
+        },
       });
       pendingToastIds.current.set(songId, toastId);
     },
-    [songs, flushRemoval, showToast, handleUndo]
+    [songs, flushRemoval, showToast, handleUndo, pauseRemovalTimer, resumeRemovalTimer]
   );
 
   const displayedSongs = useMemo(
@@ -327,7 +351,7 @@ const CleanPlaylistView: React.FC = () => {
         </Select>
         {!affinityAvailable && (
           <p className="text-center text-xs text-brand-muted">
-            Least-listened sorting needs one more permission — log out and back in to enable it.
+            {describeAffinityUnavailable(affinityReason)}
           </p>
         )}
       </div>
@@ -343,35 +367,38 @@ const CleanPlaylistView: React.FC = () => {
         <div className="flex w-full flex-col items-center gap-6" role="status" aria-live="polite">
           <span className="sr-only">Loading playlist songs…</span>
           {Array.from({ length: Math.min(limit, 10) }).map((_, i) => (
-            <SongCardSkeleton key={i} />
+            <SongCardSkeleton key={i} className="w-full md:w-3/5 lg:w-2/5" />
           ))}
         </div>
       ) : (
         <>
-          <div className="flex flex-col items-center w-full gap-6" aria-live="polite">
+          <div className="flex flex-col items-center w-full gap-6">
             {displayedSongs.length === 0 ? (
               <p className="py-10 text-center text-brand-muted">This playlist is empty.</p>
             ) : (
-              displayedSongs.map((song) => (
-                <SongCard
-                  key={song.id}
-                  id={song.id}
-                  name={song.name}
-                  artists={song.artists}
-                  album={song.album}
-                  album_pic_url={song.album_pic_url}
-                  onRefresh={() => {}}
-                  onRemove={handleRemove}
-                  className="w-full md:w-3/5 lg:w-2/5"
-                />
-              ))
+              <ul className="flex flex-col items-center w-full gap-6" aria-label="Playlist songs">
+                {displayedSongs.map((song, index) => (
+                  <SongCard
+                    key={song.id}
+                    id={song.id}
+                    name={song.name}
+                    artists={song.artists}
+                    album={song.album}
+                    album_pic_url={song.album_pic_url}
+                    onRefresh={noop}
+                    onRemove={handleRemove}
+                    priority={index < ABOVE_FOLD_ROW_COUNT}
+                    className="w-full md:w-3/5 lg:w-2/5"
+                  />
+                ))}
+              </ul>
             )}
           </div>
 
           <div className="mt-8 flex flex-col items-center w-full gap-4">
-            <Select onValueChange={(value) => handleLimitChange(Number(value))}>
+            <Select value={String(limit)} onValueChange={(value) => handleLimitChange(Number(value))}>
               <SelectTrigger className="w-[180px]" aria-label="Songs per page">
-                <SelectValue placeholder={limit} />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
@@ -383,71 +410,12 @@ const CleanPlaylistView: React.FC = () => {
               </SelectContent>
             </Select>
             {total > 0 && (
-              <Pagination className="px-6 py-2">
-                <PaginationContent>
-                  {currentPage != 1 && (
-                    <>
-                      <PaginationItem>
-                        <PaginationPrevious onClick={() => {
-                          handleOffsetChange(offset - limit, currentPage - 1);
-                        }} />
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink onClick={() => handleOffsetChange(0, 1)}>
-                          1
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  )}
-                  {currentPage > 2 && (
-                    <>
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink onClick={() =>
-                          handleOffsetChange(offset - limit, currentPage - 1)}>
-                          {currentPage - 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  )}
-                  <PaginationItem>
-                    <PaginationLink isActive={true}>
-                      {currentPage}
-                    </PaginationLink>
-                  </PaginationItem>
-                  {currentPage < lastPage - 1 && (
-                    <>
-                      <PaginationItem>
-                        <PaginationLink onClick={() =>
-                          handleOffsetChange(offset + limit, currentPage + 1)}>
-                          {currentPage + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    </>
-                  )}
-                  {currentPage != lastPage && (
-                    <>
-                      <PaginationItem>
-                        <PaginationLink onClick={() => {
-                          handleOffsetChange((lastPage - 1) * limit, lastPage);
-                        }}>
-                          {lastPage}
-                        </PaginationLink>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationNext onClick={() => {
-                          handleOffsetChange(offset + limit, currentPage + 1);
-                        }} />
-                      </PaginationItem>
-                    </>
-                  )}
-                </PaginationContent>
-              </Pagination>
+              <SongListPagination
+                total={total}
+                limit={limit}
+                currentPage={currentPage}
+                onNavigate={handleOffsetChange}
+              />
             )}
           </div>
         </>

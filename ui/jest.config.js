@@ -1,3 +1,6 @@
+// Jest resolves this file as CommonJS regardless of the app's module
+// system, so require() here is correct, not a leftover.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const nextJest = require("next/jest");
 
 const createJestConfig = nextJest({

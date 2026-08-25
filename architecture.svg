@@ -227,6 +227,6 @@
   <text x="612" y="651" font-size="9" fill="#64748b">• Uncategorized index: 8-way parallel build (~2s cold) · 15-min stale-</text>
   <text x="622" y="662" font-size="9" fill="#64748b">while-revalidate · manual refresh endpoint</text>
   <text x="612" y="675" font-size="9" fill="#64748b">• Cleanup: sort by added/least-listened (top-tracks affinity, 4 tiers,</text>
-  <text x="622" y="686" font-size="9" fill="#64748b">24h cache) · removal deferred 5s behind an undo toast</text>
+  <text x="622" y="686" font-size="9" fill="#64748b">24h cache) · removal deferred 10s behind an undo toast</text>
   <text x="612" y="698" font-size="9" fill="#64748b">• Auth gating via sessionStorage · Pinned playlists float to top</text>
 </svg>

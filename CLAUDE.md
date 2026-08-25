@@ -19,9 +19,10 @@
 ### Frontend Structure (`ui/src/`)
 - `app/` — pages: `/` (landing), `/login`, `/callback`, `/organize`, `/clean`, `/clean/[playlistId]`
 - `components/` — `app-shell.tsx` (server/client layout split), `playlists-provider.tsx` (shared playlist + pin state), `toast-provider.tsx` (shared toast host — action buttons + depleting progress bar)
-- `components/ui/` — SongCard, PlaylistList + shadcn/ui components
+- `components/ui/` — SongCard, PlaylistList, SongListPagination + SongCardSkeleton (shared by both paged song lists), + shadcn/ui components
 - `types/spotify.d.ts` — TypeScript interfaces (Song, Playlist, PlaylistSong)
 - `utils/config.ts` — API endpoint constants + OAuth scopes
+- `utils/pagination.ts` — pure offset/page-clamping and numbered-page-list helpers shared by both paged song lists
 - `utils/playlists.ts` — `sortPinnedFirst` ordering helper
 
 ### API Endpoints
@@ -52,7 +53,7 @@
 - `affinity_service.py` derives a 4-tier listening-affinity signal (0–3) from `GET /me/top/tracks` across its three time ranges, unioned; a track in none of them is tier 0. Requires the `user-top-read` scope — checked from the stored token's `scope` field before spending a request, not inferred from a 403. Cached as a versioned envelope (`track_affinity.json`, 24h freshness), same pattern as the uncategorized index, but refreshes synchronously rather than serving stale-then-background — the map is cheap (3 requests) so there's no reason to serve day-old tiers when a rebuild is this cheap. A failed refresh keeps the previous cache rather than discarding it.
 - `pins_service.apply_pins()` orders playlists pinned-first via a single-pass stable partition, preserving relative order within each group; stale pinned IDs (playlist no longer exists) are ignored
 - `PlaylistsProvider` (frontend) owns the playlist list and pin toggling for both `/organize` and `/clean/[playlistId]` (via `SongCard`'s "add to playlists" dialog), so every rendered `SongCard`'s dialog shares one pinned state and reorders together. Also exposes `refetch()` for a "try again" action after a failed load.
-- Playlist-cleanup removal (frontend, `/clean/[playlistId]`) is deferred: clicking the trash control hides the row and starts a 5s timer: the `DELETE` request fires only when it elapses. Undo clears the timer so the request is never sent. The undo affordance is a toast action with a depleting progress bar (`ToastProvider`'s `durationMs`/`action`/`progress` options) whose duration matches the removal timer exactly. A pending removal is flushed (via `fetch(..., {keepalive: true})`) on `pagehide` and on the page component's unmount, so navigating away or closing the tab carries it out rather than dropping it.
+- Playlist-cleanup removal (frontend, `/clean/[playlistId]`) is deferred: clicking the trash control hides the row and starts a 10s timer: the `DELETE` request fires only when it elapses. Undo clears the timer so the request is never sent. The undo affordance is a toast action with a depleting progress bar (`ToastProvider`'s `durationMs`/`action`/`progress` options) whose duration matches the removal timer exactly. Both timers pause together while the user hovers or keeps focus anywhere inside the toast (`ToastOptions.onPauseChange`, wired to the page's own per-song timer via `pauseRemovalTimer`/`resumeRemovalTimer`), so the window can't run out while someone is mid-reach for Undo — a WCAG 2.2.1 requirement, not just a nicety. A pending removal is flushed (via `fetch(..., {keepalive: true})`) on `pagehide` and on the page component's unmount, so navigating away or closing the tab carries it out rather than dropping it — a paused timer is still flushed this way, since the DELETE hasn't been cancelled, only delayed.
 - Frontend auth gating via `sessionStorage.token_expiry` in `layout.tsx`
 - Rate limits surface as a typed `SpotifyRateLimitedError` from `http_client`, which every router maps to **HTTP 429** with a plain-language message (other Spotify failures map to 502). Routers must never let a Spotify exception go unhandled: a bare 500 isn't annotated by `CORSMiddleware`, so the browser reports a misleading "blocked by CORS policy" error instead of the real cause, and the frontend's catch-all then renders its empty state — telling the user their library is empty when the request merely failed. Note Spotify rate limits **per endpoint**: `/me/playlists` can be limited while `/me/tracks` still succeeds, and since almost every path calls `get_created_playlists()`, that one endpoint being limited looks like a total outage.
 - Some routes use trailing slashes (`/api/oauth/`, `/api/songs/`, `/api/playlists/`), others don't
@@ -96,9 +97,8 @@ cd api && python3 -m pytest
 1. Runtime artifacts `api/user_id.json` and `api/all_uncategorized_songs.json` are not in `.gitignore` (`api/token.json`, `api/pinned_playlists.json`, and `api/track_affinity.json` are)
 2. Playback error handling returns HTTP 200 on failure branches
 3. Frontend Song type includes fields the backend doesn't return
-4. `ui/src/styles/globals.css` appears to be a legacy duplicate of `ui/src/app/globals.css`
-5. Process-level state (in-memory index cache, build coordination, the affinity cache, and the per-playlist song cache) assumes a single backend worker process — `render.yaml` and local dev both run one, but adding workers would let each build its own index/cache independently
-6. `user-top-read` was added to the requested OAuth scope set after existing sessions were already granted tokens; every session established before this scope existed must log out and back in once before listening-affinity sorting becomes available — the app degrades gracefully in the meantime rather than breaking
+4. Process-level state (in-memory index cache, build coordination, the affinity cache, and the per-playlist song cache) assumes a single backend worker process — `render.yaml` and local dev both run one, but adding workers would let each build its own index/cache independently
+5. `user-top-read` was added to the requested OAuth scope set after existing sessions were already granted tokens; every session established before this scope existed must log out and back in once before listening-affinity sorting becomes available — the app degrades gracefully in the meantime rather than breaking
 
 ## Conventions
 - Prefer small, focused changes; preserve existing style
@@ -122,14 +122,14 @@ Spotify power users who have accumulated many liked songs that aren't organized 
 
 ### Aesthetic Direction
 - **Primary reference**: Spotify itself — dark backgrounds, bold green accents, album-art-forward, high contrast
-- **Current approach**: Glassmorphism with green-to-blue gradients, frosted white cards, pill buttons — this works well for light mode and should be preserved there
-- **Theme**: Support both light and dark mode with a toggle. Dark mode should lean into Spotify's dark palette; light mode keeps the current airy glassmorphism
+- **Current approach**: Flat, opaque surfaces (`--card`, tinted toward the brand hue rather than pure white/near-black) with a solid Spotify-green fill on primary actions and pill buttons. No gradients and no `backdrop-filter` glass anywhere — both were removed for accessibility (a gradient fill can't hold a WCAG 1.4.11 boundary at every point along it) and by explicit preference. A page-level container (`.surface-panel`) carries a heavier shadow than a repeated list row (`.surface-row`), so the two read as different things without a second color palette.
+- **Theme**: Support both light and dark mode with a toggle. Dark mode leans into Spotify's dark palette; light mode keeps a light, airy surface — flat rather than glass.
 - **Typography**: IBM Plex Mono throughout (already in place) — reinforces the technical/utility character
 - **Components**: shadcn/ui + Radix primitives, Tailwind CSS, lucide-react icons
 
 ### Design Principles
 1. **Album art is the hero** — Let cover art drive visual interest. UI chrome should support, not compete with, album imagery.
 2. **Every action should feel satisfying** — Categorizing a song is the core loop. Use motion, color, and feedback to make it feel rewarding.
-3. **Spotify-native, not Spotify-clone** — Draw from Spotify's visual language (dark mode, green accents, bold type) but maintain independent identity through the glassmorphism style and gradient palette.
+3. **Spotify-native, not Spotify-clone** — Draw from Spotify's visual language (dark mode, green accents, bold type) but maintain independent identity through flat, brand-tinted surfaces rather than imitating Spotify's own chrome.
 4. **Fast and focused** — This is a utility tool. Keep interactions tight, minimize clicks, and never make the user wait without clear feedback.
-5. **Accessible by default** — Support reduced motion, maintain WCAG AA contrast ratios, and ensure keyboard navigability across both themes.
+5. **Accessible by default** — Support reduced motion, maintain WCAG AA contrast ratios for text (4.5:1) and interactive-control boundaries (3:1) in both themes, and ensure keyboard navigability throughout.

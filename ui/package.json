@@ -17,7 +17,6 @@
     "@radix-ui/react-slot": "^1.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cross-fetch": "^4.1.0",
     "lucide-react": "^0.475.0",
     "next": "^16.1.6",
     "next-themes": "^0.4.4",
@@ -52,8 +51,5 @@
     "ts-node": "^10.9.2",
     "typescript": "^5",
     "util": "^0.12.5"
-  },
-  "transform": {
-    "\\.js$": "<rootDir>/node_modules/babel-jest"
   }
 }
