@@ -128,6 +128,20 @@ describe.each([
     expect(contrastRatio(tokens["brand-destructive"], card)).toBeGreaterThanOrEqual(BOUNDARY_FLOOR);
   });
 
+  // The dropdown (Select/popover) renders on its own surface, not the card.
+  // Dark mode originally carried the light theme's near-black
+  // --popover-foreground here, which made the "songs per page" numbers
+  // invisible against the dark panel. Pinned so it can't regress.
+  it("popover-foreground clears text contrast against the popover surface (>= 4.5:1)", () => {
+    expect(contrastRatio(tokens["popover-foreground"], tokens["popover"])).toBeGreaterThanOrEqual(TEXT_FLOOR);
+  });
+
+  // The highlighted dropdown item swaps to the accent pair on hover/keyboard
+  // focus, so that pair needs the same floor as the resting one.
+  it("accent-foreground clears text contrast against the accent surface (>= 4.5:1)", () => {
+    expect(contrastRatio(tokens["accent-foreground"], tokens["accent"])).toBeGreaterThanOrEqual(TEXT_FLOOR);
+  });
+
   it("the card is distinguishable from the page background (not identical)", () => {
     expect(contrastRatio(card, pageBg)).toBeGreaterThan(1);
   });
@@ -150,6 +164,10 @@ describe("cross-theme structure", () => {
     "brand-destructive",
     "brand-footer",
     "brand-page-bg",
+    "popover",
+    "popover-foreground",
+    "accent",
+    "accent-foreground",
   ];
 
   it.each(requiredTokens)("%s is defined in both the light and dark theme blocks", (token) => {
