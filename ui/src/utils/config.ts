@@ -26,11 +26,19 @@ export const GET_PLAYLISTS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/ap
 export const POST_PLAYLISTS_ADD_SONG_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/add-song`;
 export const GET_PLAYLIST_PINS_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/pins`;
 export const POST_PLAYLIST_PIN_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/pin`;
-// Playlist-cleanup: reading/removing songs within one playlist. Both verbs
-// share the same URL — GET takes offset/limit/sort as query params, DELETE
-// takes { songId } as its body.
-export const getPlaylistSongsEndpoint = (playlistId: string) =>
-    `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/${playlistId}/songs`;
+// Playlist-cleanup / song-propagation: reading/removing/adding songs within
+// one playlist. GET takes offset/limit/sort (and, for propagation,
+// exclude_playlist_id) as query params, DELETE takes { songId } as its body.
+// excludePlaylistId is appended here rather than left to the caller so both
+// features build the same URL shape; callers that also need offset/limit/
+// sort should merge them into this URL's existing search params rather than
+// overwriting it.
+export const getPlaylistSongsEndpoint = (playlistId: string, excludePlaylistId?: string) => {
+    const base = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playlists/${playlistId}/songs`;
+    return excludePlaylistId
+        ? `${base}?${new URLSearchParams({ exclude_playlist_id: excludePlaylistId }).toString()}`
+        : base;
+};
 export const PUT_START_PLAYBACK_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playback/start`;
 export const PUT_STOP_PLAYBACK_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/playback/stop`;
 export const DELETE_LOGOUT_ENDPOINT = `${process.env.NEXT_PUBLIC_SERVER_HOST}/api/oauth/logout`;

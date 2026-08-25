@@ -3,10 +3,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 
-import { getPlaylistSongsEndpoint } from '@/utils/config';
+import { getPlaylistSongsEndpoint, POST_PLAYLISTS_ADD_SONG_ENDPOINT } from '@/utils/config';
 import { PlaylistSong } from '@/types/spotify';
 import { useToast } from '@/components/toast-provider';
-import { PlaylistsProvider } from '@/components/playlists-provider';
 import { Button } from '@/components/ui/button';
 import { SongCard } from '@/components/ui/song';
 import { SongListPagination } from '@/components/ui/song-list-pagination';
@@ -47,9 +46,25 @@ function describeAffinityUnavailable(reason: string | null): string {
   return "Least-listened sorting is unavailable right now.";
 }
 
+function buildSongsUrl(
+  sourceId: string,
+  destinationId: string,
+  fetchOffset: number,
+  fetchLimit: number,
+  fetchSort: SortKey
+) {
+  const url = new URL(getPlaylistSongsEndpoint(sourceId, destinationId));
+  const params = new URLSearchParams(url.search);
+  params.set("offset", String(fetchOffset));
+  params.set("limit", String(fetchLimit));
+  params.set("sort", fetchSort);
+  url.search = params.toString();
+  return url;
+}
+
 // Matches the backend's undo window exactly, so the toast's progress bar
-// and the moment the removal actually fires never disagree.
-const UNDO_WINDOW_MS = 10000;
+// and the moment the add actually fires never disagree.
+const ADD_WINDOW_MS = 10000;
 // Album art is this page's LCP element. Rows within this count are already
 // in the viewport on first render, so their art loads eagerly.
 const ABOVE_FOLD_ROW_COUNT = 3;
@@ -58,9 +73,9 @@ const ABOVE_FOLD_ROW_COUNT = 3;
 // own, unlike /organize.
 const noop = () => {};
 
-const CleanPlaylistView: React.FC = () => {
-  const params = useParams<{ playlistId: string }>();
-  const playlistId = params.playlistId;
+const PropagateSongsView: React.FC = () => {
+  const params = useParams<{ destinationId: string; sourceId: string }>();
+  const { destinationId, sourceId } = params;
   const { showToast } = useToast();
 
   const [playlistName, setPlaylistName] = useState<string | null>(null);
@@ -75,6 +90,11 @@ const CleanPlaylistView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  // Distinguishes "the source has no songs at all" from "every source song
+  // is already in the destination" — both read as total === 0 from the
+  // exclusion-applied response, so an empty page checks the source's
+  // unfiltered total once to tell them apart.
+  const [sourceIsEmpty, setSourceIsEmpty] = useState(false);
 
   const fetchPage = useCallback(
     async (fetchOffset: number, fetchLimit: number, fetchSort: SortKey) => {
@@ -82,20 +102,13 @@ const CleanPlaylistView: React.FC = () => {
       setLoadError(null);
       setNotFound(false);
       try {
-        const url = new URL(getPlaylistSongsEndpoint(playlistId));
-        url.search = new URLSearchParams({
-          offset: String(fetchOffset),
-          limit: String(fetchLimit),
-          sort: fetchSort,
-        }).toString();
+        const url = buildSongsUrl(sourceId, destinationId, fetchOffset, fetchLimit, fetchSort);
         const response = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
         if (response.status === 404) {
           setNotFound(true);
           return;
         }
         if (!response.ok) {
-          // Prefer the server's own explanation — notably its rate-limit
-          // message, which tells the user to wait rather than retry now.
           let detail = "Failed to load this playlist. Please try again.";
           try {
             const body = await response.json();
@@ -111,6 +124,21 @@ const CleanPlaylistView: React.FC = () => {
         setTotal(data.total);
         setAffinityAvailable(data.affinity.available);
         setAffinityReason(data.affinity.reason);
+
+        if (data.total === 0) {
+          const rawUrl = new URL(getPlaylistSongsEndpoint(sourceId));
+          rawUrl.search = new URLSearchParams({ offset: "0", limit: "1", sort: "playlist" }).toString();
+          const rawResponse = await fetch(rawUrl, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (rawResponse.ok) {
+            const rawData = await rawResponse.json();
+            setSourceIsEmpty(rawData.total === 0);
+          }
+        } else {
+          setSourceIsEmpty(false);
+        }
       } catch (error) {
         console.error("Error loading playlist songs:", error);
         setLoadError((error as Error).message || "Failed to load this playlist. Please try again.");
@@ -118,13 +146,13 @@ const CleanPlaylistView: React.FC = () => {
         setLoading(false);
       }
     },
-    [playlistId]
+    [sourceId, destinationId]
   );
 
   useEffect(() => {
     fetchPage(0, 10, "playlist");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playlistId]);
+  }, [sourceId, destinationId]);
 
   const runLoad = (fetchOffset: number, fetchLimit: number, fetchSort: SortKey, newPage: number) => {
     setCurrentPage(newPage);
@@ -144,8 +172,8 @@ const CleanPlaylistView: React.FC = () => {
     runLoad(reset.offset, value, sort, reset.page);
   };
 
-  // Shared with the organize page's handler via clampOffsetPage, so both
-  // pagination controls behave identically.
+  // Shared with the organize/cleanup pages' handler via clampOffsetPage, so
+  // every paginated song list behaves identically.
   const handleOffsetChange = (newOffset: number, newPage: number) => {
     const clamped = clampOffsetPage(newOffset, newPage, total, limit);
     runLoad(clamped.offset, limit, sort, clamped.page);
@@ -156,13 +184,13 @@ const CleanPlaylistView: React.FC = () => {
     handleOffsetChange(offset - limit, currentPage - 1);
   };
 
-  const performRemoval = useCallback(
+  const performAdd = useCallback(
     async (song: PlaylistSong, opts?: { keepalive?: boolean }) => {
-      const response = await fetch(getPlaylistSongsEndpoint(playlistId), {
-        method: "DELETE",
+      const response = await fetch(POST_PLAYLISTS_ADD_SONG_ENDPOINT, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         keepalive: opts?.keepalive,
-        body: JSON.stringify({ songId: song.id }),
+        body: JSON.stringify({ songId: song.id, playlistIds: [destinationId] }),
       });
       if (response.status === 403) {
         throw new Error("permission");
@@ -171,44 +199,44 @@ const CleanPlaylistView: React.FC = () => {
         throw new Error("failed");
       }
     },
-    [playlistId]
+    [destinationId]
   );
 
-  const handleRemovalError = useCallback(
+  const handleAddError = useCallback(
     (song: PlaylistSong, error: unknown) => {
       const message =
         (error as Error).message === "permission"
-          ? `The playlist could not be modified — "${song.name}" was not removed.`
-          : `Failed to remove "${song.name}". Please try again.`;
+          ? `The playlist could not be modified — "${song.name}" was not added.`
+          : `Failed to add "${song.name}". Please try again.`;
       showToast(message, "error");
     },
     [showToast]
   );
 
-  const buildRemovalToastMessage = useCallback((song: PlaylistSong) => `Removed "${song.name}"`, []);
+  const buildAddToastMessage = useCallback((song: PlaylistSong) => `Added "${song.name}"`, []);
 
-  const { pendingIds: pendingRemovalIds, trigger: triggerRemoval } = useDeferredRowAction<PlaylistSong>({
-    windowMs: UNDO_WINDOW_MS,
-    perform: performRemoval,
-    buildToastMessage: buildRemovalToastMessage,
-    onError: handleRemovalError,
+  const { pendingIds: pendingAddIds, trigger: triggerAdd } = useDeferredRowAction<PlaylistSong>({
+    windowMs: ADD_WINDOW_MS,
+    perform: performAdd,
+    buildToastMessage: buildAddToastMessage,
+    onError: handleAddError,
   });
 
-  const handleRemove = useCallback(
+  const handleAdd = useCallback(
     (songId: string) => {
       const song = songs.find((s) => s.id === songId);
       if (!song) return;
-      triggerRemoval(song);
+      triggerAdd(song);
     },
-    [songs, triggerRemoval]
+    [songs, triggerAdd]
   );
 
   const displayedSongs = useMemo(
-    () => songs.filter((song) => !pendingRemovalIds.has(song.id)),
-    [songs, pendingRemovalIds]
+    () => songs.filter((song) => !pendingAddIds.has(song.id)),
+    [songs, pendingAddIds]
   );
 
-  // A removal emptying a later page should not leave the user staring at
+  // An add emptying a later page should not leave the user staring at
   // nothing — move back a page rather than presenting it empty.
   useEffect(() => {
     if (!loading && currentPage > 1 && displayedSongs.length === 0 && songs.length > 0) {
@@ -221,7 +249,7 @@ const CleanPlaylistView: React.FC = () => {
     return (
       <div className="app-bg flex w-full flex-1 flex-col items-center justify-center px-4 py-10 text-center">
         <p className="max-w-[42ch] text-sm text-brand-muted">
-          This playlist is unavailable. It may not exist, or you may not own it.
+          This playlist pair is unavailable. One of them may not exist, or you may not own it.
         </p>
       </div>
     );
@@ -230,10 +258,10 @@ const CleanPlaylistView: React.FC = () => {
   return (
     <div className="app-bg flex w-full flex-1 flex-col items-center justify-start px-4 py-10">
       <h1 className="text-center text-2xl font-bold tracking-tight text-brand-heading sm:text-4xl">
-        {playlistName ? `clean "${playlistName}"` : "clean playlist"}
+        {playlistName ? `propagate from "${playlistName}"` : "propagate songs"}
       </h1>
       <p className="mx-auto mb-6 mt-3 max-w-[42ch] text-center text-sm text-brand-muted sm:mb-8 sm:mt-4">
-        sort by how stale a song is, then remove the ones you&apos;re done with.
+        add songs from this playlist into your destination playlist.
       </p>
 
       <div className="mb-6 flex w-full max-w-xs flex-col items-center gap-1">
@@ -281,7 +309,9 @@ const CleanPlaylistView: React.FC = () => {
         <>
           <div className="flex flex-col items-center w-full gap-6">
             {displayedSongs.length === 0 ? (
-              <p className="py-10 text-center text-brand-muted">This playlist is empty.</p>
+              <p className="py-10 text-center text-brand-muted">
+                {sourceIsEmpty ? "This playlist is empty." : "Nothing left to propagate — every song is already there."}
+              </p>
             ) : (
               <ul className="flex flex-col items-center w-full gap-6" aria-label="Playlist songs">
                 {displayedSongs.map((song, index) => (
@@ -293,7 +323,8 @@ const CleanPlaylistView: React.FC = () => {
                     album={song.album}
                     album_pic_url={song.album_pic_url}
                     onRefresh={noop}
-                    onRemove={handleRemove}
+                    onAdd={handleAdd}
+                    showAddToPlaylists={false}
                     priority={index < ABOVE_FOLD_ROW_COUNT}
                     className="w-full md:w-3/5 lg:w-2/5"
                   />
@@ -331,10 +362,6 @@ const CleanPlaylistView: React.FC = () => {
   );
 };
 
-const CleanPlaylistPage: React.FC = () => (
-  <PlaylistsProvider>
-    <CleanPlaylistView />
-  </PlaylistsProvider>
-);
+const PropagateSongsPage: React.FC = () => <PropagateSongsView />;
 
-export default CleanPlaylistPage;
+export default PropagateSongsPage;

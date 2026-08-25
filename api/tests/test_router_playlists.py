@@ -164,7 +164,7 @@ def test_get_playlist_songs_happy_path(client, monkeypatch):
     monkeypatch.setattr(
         playlists,
         "get_playlist_songs_page",
-        lambda token, playlist_id, offset, limit, sort, affinity_tiers=None: (
+        lambda token, playlist_id, offset, limit, sort, affinity_tiers=None, exclude_song_ids=None: (
             [{"id": "a", "name": "A", "artists": "", "album": "", "album_pic_url": None, "added_at": "x"}],
             1,
         ),
@@ -207,7 +207,7 @@ def test_get_playlist_songs_affinity_unavailable_is_surfaced(client, monkeypatch
     monkeypatch.setattr(
         playlists,
         "get_playlist_songs_page",
-        lambda token, playlist_id, offset, limit, sort, affinity_tiers=None: ([], 0),
+        lambda token, playlist_id, offset, limit, sort, affinity_tiers=None, exclude_song_ids=None: ([], 0),
     )
     response = client.get("/api/playlists/p1/songs")
     assert response.status_code == 200
@@ -357,3 +357,143 @@ def test_delete_playlist_song_failure_returns_502(client, monkeypatch):
 def test_delete_playlist_song_validation(client):
     response = client.request("DELETE", "/api/playlists/p1/songs", json={})
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# GET /api/playlists/{playlist_id}/songs — exclude_playlist_id (song propagation)
+# ---------------------------------------------------------------------------
+
+
+def test_get_playlist_songs_exclude_param_absent_is_unchanged(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Mine"}])
+    monkeypatch.setattr(playlists, "get_affinity", lambda token: {"available": True, "reason": None, "tiers": {}})
+
+    captured = {}
+
+    def fake_page(token, playlist_id, offset, limit, sort, affinity_tiers=None, exclude_song_ids=None):
+        captured["exclude_song_ids"] = exclude_song_ids
+        return [], 0
+
+    monkeypatch.setattr(playlists, "get_playlist_songs_page", fake_page)
+
+    response = client.get("/api/playlists/p1/songs")
+    assert response.status_code == 200
+    assert captured["exclude_song_ids"] is None
+
+
+def test_get_playlist_songs_exclude_param_applies_exclusion(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Source"}, {"id": "p2", "name": "Dest"}])
+    monkeypatch.setattr(playlists, "get_affinity", lambda token: {"available": True, "reason": None, "tiers": {}})
+    monkeypatch.setattr(playlists, "get_playlist_song_ids", lambda token, playlist_id, executor=None: {"dup1", "dup2"})
+
+    captured = {}
+
+    def fake_page(token, playlist_id, offset, limit, sort, affinity_tiers=None, exclude_song_ids=None):
+        captured["exclude_song_ids"] = exclude_song_ids
+        return [{"id": "new", "name": "N", "artists": "", "album": "", "album_pic_url": None, "added_at": "x"}], 1
+
+    monkeypatch.setattr(playlists, "get_playlist_songs_page", fake_page)
+
+    response = client.get("/api/playlists/p1/songs?exclude_playlist_id=p2")
+    assert response.status_code == 200
+    body = response.json()
+    assert captured["exclude_song_ids"] == {"dup1", "dup2"}
+    assert body["total"] == 1
+    assert body["songs"][0]["id"] == "new"
+
+
+def test_get_playlist_songs_self_exclusion_returns_400(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Mine"}])
+    response = client.get("/api/playlists/p1/songs?exclude_playlist_id=p1")
+    assert response.status_code == 400
+
+
+def test_get_playlist_songs_unknown_excluded_playlist_returns_404(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Mine"}])
+    response = client.get("/api/playlists/p1/songs?exclude_playlist_id=not-owned")
+    assert response.status_code == 404
+
+
+def test_get_playlist_songs_not_owned_excluded_playlist_returns_404(client, monkeypatch):
+    # p2 exists but is not returned by get_created_playlists (not owned)
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Mine"}])
+    response = client.get("/api/playlists/p1/songs?exclude_playlist_id=p2")
+    assert response.status_code == 404
+
+
+def test_get_playlist_songs_exclusion_resolves_both_playlists_in_one_call(client, monkeypatch):
+    calls = []
+
+    def fake_get_created(token):
+        calls.append(1)
+        return [{"id": "p1", "name": "Source"}, {"id": "p2", "name": "Dest"}]
+
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+    monkeypatch.setattr(playlists, "get_created_playlists", fake_get_created)
+    monkeypatch.setattr(playlists, "get_affinity", lambda token: {"available": True, "reason": None, "tiers": {}})
+    monkeypatch.setattr(playlists, "get_playlist_song_ids", lambda token, playlist_id, executor=None: set())
+    monkeypatch.setattr(
+        playlists,
+        "get_playlist_songs_page",
+        lambda token, playlist_id, offset, limit, sort, affinity_tiers=None, exclude_song_ids=None: ([], 0),
+    )
+
+    response = client.get("/api/playlists/p1/songs?exclude_playlist_id=p2")
+    assert response.status_code == 200
+    assert len(calls) == 1
+
+
+def test_get_playlist_songs_exclusion_rate_limited_returns_429(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Source"}, {"id": "p2", "name": "Dest"}])
+    monkeypatch.setattr(playlists, "get_affinity", lambda token: {"available": True, "reason": None, "tiers": {}})
+
+    def boom(token, playlist_id, executor=None):
+        raise SpotifyRateLimitedError(60)
+
+    monkeypatch.setattr(playlists, "get_playlist_song_ids", boom)
+    response = client.get("/api/playlists/p1/songs?exclude_playlist_id=p2")
+    assert response.status_code == 429
+
+
+def test_get_playlist_songs_exclusion_permission_error_returns_403(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Source"}, {"id": "p2", "name": "Dest"}])
+    monkeypatch.setattr(playlists, "get_affinity", lambda token: {"available": True, "reason": None, "tiers": {}})
+
+    def boom(token, playlist_id, executor=None):
+        raise PermissionError("nope")
+
+    monkeypatch.setattr(playlists, "get_playlist_song_ids", boom)
+    response = client.get("/api/playlists/p1/songs?exclude_playlist_id=p2")
+    assert response.status_code == 403
+
+
+def test_get_playlist_songs_exclusion_load_failure_returns_502(client, monkeypatch):
+    _stub_owned_playlists(monkeypatch, [{"id": "p1", "name": "Source"}, {"id": "p2", "name": "Dest"}])
+    monkeypatch.setattr(playlists, "get_affinity", lambda token: {"available": True, "reason": None, "tiers": {}})
+
+    def boom(token, playlist_id, executor=None):
+        raise RuntimeError("spotify down")
+
+    monkeypatch.setattr(playlists, "get_playlist_song_ids", boom)
+    response = client.get("/api/playlists/p1/songs?exclude_playlist_id=p2")
+    assert response.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# POST /api/playlists/add-song — cache invalidation for song propagation
+# ---------------------------------------------------------------------------
+
+
+def test_post_song_to_playlists_invalidates_each_target_playlist_cache(client, monkeypatch):
+    monkeypatch.setattr(playlists, "get_valid_token", lambda: "token")
+    monkeypatch.setattr(playlists, "add_song_to_playlists", lambda token, song_id, playlist_ids: None)
+
+    invalidated = []
+    monkeypatch.setattr(playlists, "invalidate_playlist_cache", lambda playlist_id: invalidated.append(playlist_id))
+
+    response = client.post(
+        "/api/playlists/add-song",
+        json={"songId": "s1", "playlistIds": ["p1", "p2"]},
+    )
+    assert response.status_code == 200
+    assert invalidated == ["p1", "p2"]

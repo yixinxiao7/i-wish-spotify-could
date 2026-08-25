@@ -294,3 +294,114 @@ def test_get_playlist_songs_page_tier_defaults_to_zero_without_affinity(monkeypa
     )
     page, _ = playlist_songs_service.get_playlist_songs_page("token", "p1", 0, 10, "playlist")
     assert page[0]["affinity_tier"] == 0
+
+
+# ---------------------------------------------------------------------------
+# get_playlist_songs_page — exclusion (song-propagation)
+# ---------------------------------------------------------------------------
+
+
+def test_get_playlist_songs_page_excludes_named_song_ids():
+    playlist_songs_service._set_cached_songs(
+        "p1", [_song("a", "2020-01-01"), _song("b", "2020-01-02"), _song("c", "2020-01-03")]
+    )
+    page, total = playlist_songs_service.get_playlist_songs_page(
+        "token", "p1", offset=0, limit=10, sort="playlist", exclude_song_ids={"b"}
+    )
+    assert [s["id"] for s in page] == ["a", "c"]
+    assert total == 2
+
+
+def test_get_playlist_songs_page_exclusion_applied_before_ordering():
+    songs = [_song("keep-new", "2020-06-01"), _song("excluded", "2020-01-01"), _song("keep-old", "2020-02-01")]
+    playlist_songs_service._set_cached_songs("p1", songs)
+    page, total = playlist_songs_service.get_playlist_songs_page(
+        "token", "p1", offset=0, limit=10, sort="added_asc", exclude_song_ids={"excluded"}
+    )
+    assert [s["id"] for s in page] == ["keep-old", "keep-new"]
+    assert total == 2
+
+
+def test_get_playlist_songs_page_excluding_every_song_yields_empty_page():
+    playlist_songs_service._set_cached_songs("p1", [_song("a", "2020-01-01"), _song("b", "2020-01-02")])
+    page, total = playlist_songs_service.get_playlist_songs_page(
+        "token", "p1", offset=0, limit=10, sort="playlist", exclude_song_ids={"a", "b"}
+    )
+    assert page == []
+    assert total == 0
+
+
+def test_get_playlist_songs_page_exclude_none_is_unchanged():
+    playlist_songs_service._set_cached_songs("p1", [_song("a", "2020-01-01")])
+    page_a, total_a = playlist_songs_service.get_playlist_songs_page(
+        "token", "p1", offset=0, limit=10, sort="playlist", exclude_song_ids=None
+    )
+    page_b, total_b = playlist_songs_service.get_playlist_songs_page(
+        "token", "p1", offset=0, limit=10, sort="playlist"
+    )
+    assert page_a == page_b
+    assert total_a == total_b == 1
+
+
+def test_get_playlist_songs_page_exclude_empty_set_is_unchanged():
+    playlist_songs_service._set_cached_songs("p1", [_song("a", "2020-01-01")])
+    page, total = playlist_songs_service.get_playlist_songs_page(
+        "token", "p1", offset=0, limit=10, sort="playlist", exclude_song_ids=set()
+    )
+    assert [s["id"] for s in page] == ["a"]
+    assert total == 1
+
+
+# ---------------------------------------------------------------------------
+# get_playlist_song_ids
+# ---------------------------------------------------------------------------
+
+
+def test_get_playlist_song_ids_returns_id_set(monkeypatch):
+    monkeypatch.setattr(
+        playlist_songs_service,
+        "spotify_get",
+        lambda *a, **k: DummyResponse(200, {"items": [_item("a"), _item("b")], "next": None, "total": 2}),
+    )
+    ids = playlist_songs_service.get_playlist_song_ids("token", "p1")
+    assert ids == {"a", "b"}
+
+
+def test_get_playlist_song_ids_hits_cache_on_second_call(monkeypatch):
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        return DummyResponse(200, {"items": [_item("a")], "next": None, "total": 1})
+
+    monkeypatch.setattr(playlist_songs_service, "spotify_get", fake_get)
+    playlist_songs_service.get_playlist_song_ids("token", "p1")
+    playlist_songs_service.get_playlist_song_ids("token", "p1")
+    assert len(calls) == 1
+
+
+def test_get_playlist_song_ids_refetches_after_cache_invalidated(monkeypatch):
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        return DummyResponse(200, {"items": [_item("a")], "next": None, "total": 1})
+
+    monkeypatch.setattr(playlist_songs_service, "spotify_get", fake_get)
+    playlist_songs_service.get_playlist_song_ids("token", "p1")
+    playlist_songs_service.invalidate_playlist_cache("p1")
+    playlist_songs_service.get_playlist_song_ids("token", "p1")
+    assert len(calls) == 2
+
+
+def test_get_playlist_song_ids_shares_cache_with_get_playlist_songs_page(monkeypatch):
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        return DummyResponse(200, {"items": [_item("a")], "next": None, "total": 1})
+
+    monkeypatch.setattr(playlist_songs_service, "spotify_get", fake_get)
+    playlist_songs_service.get_playlist_songs_page("token", "p1", 0, 10, "playlist")
+    playlist_songs_service.get_playlist_song_ids("token", "p1")
+    assert len(calls) == 1

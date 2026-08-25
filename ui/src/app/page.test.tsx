@@ -25,13 +25,22 @@ describe("Landing page", () => {
     expect(pushMock).toHaveBeenCalledWith("/clean");
   });
 
-  it("both tool buttons carry a description distinguishing them", () => {
+  it("routes to propagate from the propagate songs button", () => {
+    render(<Landing />);
+    fireEvent.click(screen.getByRole("button", { name: "propagate songs" }));
+    expect(pushMock).toHaveBeenCalledWith("/propagate");
+  });
+
+  it("all three tool buttons carry a description distinguishing them", () => {
     render(<Landing />);
     expect(
       screen.getByText(/sort liked songs that aren't in any playlist/i)
     ).toBeInTheDocument();
     expect(
       screen.getByText(/find songs you've stopped listening to/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/add songs from one playlist into another/i)
     ).toBeInTheDocument();
   });
 });
