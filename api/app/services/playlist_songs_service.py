@@ -179,6 +179,48 @@ def invalidate_playlist_cache(playlist_id: str):
         _cache.pop(playlist_id, None)
 
 
+def _get_or_fetch_songs(access_token: str, playlist_id: str, executor: ThreadPoolExecutor = None):
+    '''
+    Get a playlist's full song list, serving it from the per-playlist cache
+    when fresh and populating the cache on a cold fetch. Shared by every
+    reader of a playlist's songs so there is exactly one cache to reason
+    about and invalidate.
+    Args:
+        access_token (str): Spotify access token
+        playlist_id (str): Spotify playlist ID
+        executor (ThreadPoolExecutor, optional): shared pool for a cold fetch
+    Returns:
+        list[dict]: songs in playlist order, as fetch_all_playlist_songs
+    Raises:
+        PermissionError: the playlist could not be read (403)
+        PlaylistIntegrityError: see fetch_all_playlist_songs
+    '''
+    songs = _get_cached_songs(playlist_id)
+    if songs is None:
+        songs = fetch_all_playlist_songs(access_token, playlist_id, executor)
+        _set_cached_songs(playlist_id, songs)
+    return songs
+
+
+def get_playlist_song_ids(access_token: str, playlist_id: str, executor: ThreadPoolExecutor = None) -> set:
+    '''
+    Get the set of song IDs in a playlist, served from the same per-playlist
+    cache get_playlist_songs_page uses — used to build the exclusion set for
+    song propagation without a second, differently-keyed cache.
+    Args:
+        access_token (str): Spotify access token
+        playlist_id (str): Spotify playlist ID
+        executor (ThreadPoolExecutor, optional): shared pool for a cold fetch
+    Returns:
+        set[str]: song IDs in the playlist
+    Raises:
+        PermissionError: the playlist could not be read (403)
+        PlaylistIntegrityError: see fetch_all_playlist_songs
+    '''
+    songs = _get_or_fetch_songs(access_token, playlist_id, executor)
+    return {song["id"] for song in songs}
+
+
 def get_playlist_songs_page(
     access_token: str,
     playlist_id: str,
@@ -187,6 +229,7 @@ def get_playlist_songs_page(
     sort: str,
     affinity_tiers: dict = None,
     executor: ThreadPoolExecutor = None,
+    exclude_song_ids: set = None,
 ):
     '''
     Get one page of a playlist's songs, ordered as requested, computed over
@@ -199,10 +242,13 @@ def get_playlist_songs_page(
         sort (str): one of SORT_KEYS
         affinity_tiers (dict, optional): {track_id: tier} for "affinity_asc"
         executor (ThreadPoolExecutor, optional): shared pool for a cold fetch
+        exclude_song_ids (set[str], optional): song IDs to omit before
+            ordering and pagination — e.g. songs a propagation destination
+            already contains. Absent or empty, behavior is unchanged.
     Returns:
         tuple[list[dict], int]: (page of songs — each carrying affinity_tier,
             0 when affinity_tiers is not provided — and total songs in the
-            playlist)
+            playlist after exclusion)
     Raises:
         ValueError: `sort` is not a recognized key
         PermissionError: the playlist could not be read (403)
@@ -211,10 +257,10 @@ def get_playlist_songs_page(
     if sort not in SORT_KEYS:
         raise ValueError(f"Unknown sort: {sort!r}")
 
-    songs = _get_cached_songs(playlist_id)
-    if songs is None:
-        songs = fetch_all_playlist_songs(access_token, playlist_id, executor)
-        _set_cached_songs(playlist_id, songs)
+    songs = _get_or_fetch_songs(access_token, playlist_id, executor)
+
+    if exclude_song_ids:
+        songs = [song for song in songs if song["id"] not in exclude_song_ids]
 
     ordered = sort_songs(songs, sort, affinity_tiers)
     page = ordered[offset:offset + limit]
@@ -234,5 +280,6 @@ __all__ = [
     "fetch_all_playlist_songs",
     "sort_songs",
     "get_playlist_songs_page",
+    "get_playlist_song_ids",
     "invalidate_playlist_cache",
 ]

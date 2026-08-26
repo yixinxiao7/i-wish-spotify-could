@@ -1,6 +1,6 @@
 # Project Context - `i-wish-spotify-could`
 
-_Last updated: August 24, 2026 — playlist cleanup feature (`/clean`, `/clean/[playlistId]`; least-listened sorting via a listening-affinity signal; deferred, undoable song removal; see §4 "Playlist-songs and listening-affinity services" and §5 "Clean playlist pages" below). Prior entry: August 23, 2026 — uncategorized-songs load speedup._
+_Last updated: August 24, 2026 — song propagation feature (`/propagate`, `/propagate/[destinationId]/from/[sourceId]`; copies songs from one owned playlist into another, excluding songs already present; reuses the playlist-cleanup deferred/undoable-add machinery via a new shared hook; see §4 "Song propagation" and §5 "Propagate pages" below). Prior entry, same day: playlist cleanup feature (`/clean`, `/clean/[playlistId]`; least-listened sorting via a listening-affinity signal; deferred, undoable song removal; see §4 "Playlist-songs and listening-affinity services" and §5 "Clean playlist pages" below). Prior entry: August 23, 2026 — uncategorized-songs load speedup._
 
 This document reflects the current workspace state from code inspection plus local test execution.
 
@@ -28,7 +28,8 @@ Main flow:
 
 Also implemented:
 - Logout endpoint and UI logout button that clears local server cache files and client auth marker.
-- **Playlist cleanup** (`/clean`, `/clean/[playlistId]`): the reverse tool — finding songs to remove from a playlist the user already owns. `/clean` lists owned playlists (reusing the same `PlaylistList` component and pinning as everywhere else); picking one opens `/clean/[playlistId]`, which shows that playlist's songs (via the same `SongCard` presentation as `/organize`) sorted by playlist order, date added (either direction), or a "least listened" estimate. Removing a song is deferred five seconds behind an undo toast before the actual Spotify call fires.
+- **Playlist cleanup** (`/clean`, `/clean/[playlistId]`): the reverse tool — finding songs to remove from a playlist the user already owns. `/clean` lists owned playlists (reusing the same `PlaylistList` component and pinning as everywhere else); picking one opens `/clean/[playlistId]`, which shows that playlist's songs (via the same `SongCard` presentation as `/organize`) sorted by playlist order, date added (either direction), or a "least listened" estimate. Removing a song is deferred ten seconds behind an undo toast before the actual Spotify call fires.
+- **Song propagation** (`/propagate`, `/propagate/[destinationId]/from/[sourceId]`): copies songs from one owned playlist (the source) into another (the destination) — e.g. pulling boom-bap tracks that also fit a jazz-rap playlist. `/propagate` picks a destination via the same playlist chooser as `/clean`, then a dialog picks a source from the user's remaining owned playlists. The working page lists the source's songs with whatever the destination already contains excluded, using the same `SongCard`/sort/pagination as cleanup, but with a plus control (add) instead of a trash control (remove), and no "add to playlists" dialog since the destination is fixed. Adding is deferred ten seconds behind an undo toast, same mechanics as cleanup's removal, now sharing one hook (`useDeferredRowAction`) between both features.
 
 ## 3. High-Level Architecture
 
@@ -55,8 +56,10 @@ Also implemented:
 2. `/callback`
 3. `/` (landing)
 4. `/organize`
-5. `/clean` (new — playlist chooser)
-6. `/clean/[playlistId]` (new — playlist cleanup view)
+5. `/clean` (playlist chooser)
+6. `/clean/[playlistId]` (playlist cleanup view)
+7. `/propagate` (new — destination playlist chooser, opens a source-picker dialog)
+8. `/propagate/[destinationId]/from/[sourceId]` (new — song propagation working view)
 - `ui/src/app/layout.tsx` is a server component that exports page `metadata` (title/description) and renders `<html><body>`. All client-side behavior — the `sessionStorage.token_expiry` auth gate, navbar, theme toggle, logout — lives in `ui/src/components/app-shell.tsx`, mounted from the server layout. `/organize` and `/login` each have their own thin server `layout.tsx` (just a `metadata` export) since their `page.tsx` files are client components and can't export `metadata` directly.
 - Toasts are centralized in `ui/src/components/toast-provider.tsx` (`ToastProvider`/`useToast`), mounted once at the `AppShell` root. There is no longer a per-component toast implementation — `SongCard` and the organize page both call the shared `showToast`.
 
@@ -79,10 +82,10 @@ Backend app entry: `api/app/main.py`
 6. `GET /api/playlists/`
 - Returns current-user-owned playlists.
 7. `POST /api/playlists/add-song`
-- Adds one song to multiple playlists, then removes the song from the uncategorized-songs index via `songs_service.remove_song_from_index()` (the router no longer touches the cache file directly).
-8. `GET /api/playlists/{playlist_id}/songs` (new)
-- Query params `offset`, `limit`, `sort` (`playlist`|`added_asc`|`added_desc`|`affinity_asc`). `404` if the playlist is unknown or not owned by the current user (looked up via `get_created_playlists`, which is owned-only by construction). `400` for an unrecognized `sort`. Returns `{playlist: {id, name}, songs: [...], total, affinity: {available, reason}}` — each song carries `affinity_tier` (0–3), attached at read time from whatever affinity map was passed in, not stored on the cached list.
-9. `DELETE /api/playlists/{playlist_id}/songs` (new)
+- Adds one song to multiple playlists, then removes the song from the uncategorized-songs index via `songs_service.remove_song_from_index()` (the router no longer touches the cache file directly). **(new)** Also invalidates each target playlist's own cached song list (`playlist_songs_service.invalidate_playlist_cache`) — needed once song propagation reads a playlist's contents to compute an exclusion set; without it, a song just added would still read as "missing" from that cache for up to 5 minutes and could be propagated (added) a second time, since Spotify allows duplicate entries.
+8. `GET /api/playlists/{playlist_id}/songs`
+- Query params `offset`, `limit`, `sort` (`playlist`|`added_asc`|`added_desc`|`affinity_asc`), and now `exclude_playlist_id` (new — an owned playlist ID; songs it already contains are omitted before ordering and pagination, and `total` reflects the exclusion). `404` if the playlist, or the excluded playlist when given, is unknown or not owned by the current user (both resolved from a **single** `get_created_playlists()` call — see below). `400` for an unrecognized `sort`, and `400` if `exclude_playlist_id` equals the path playlist. Returns `{playlist: {id, name}, songs: [...], total, affinity: {available, reason}}` — each song carries `affinity_tier` (0–3), attached at read time from whatever affinity map was passed in, not stored on the cached list.
+9. `DELETE /api/playlists/{playlist_id}/songs`
 - Body `{songId}`. `403` on a permission failure, `502` on any other failure. On success, invalidates that playlist's cached song list (`playlist_songs_service.invalidate_playlist_cache`) and marks the uncategorized-songs index stale (`songs_service.mark_index_stale`) so a later read triggers exactly one background rebuild — removing a song can make a liked song uncategorized again.
 10. `PUT /api/playback/start`
 11. `PUT /api/playback/stop`
@@ -217,6 +220,28 @@ Added for the playlist-cleanup feature.
   handles the rebuild — the request that triggered the removal is never
   blocked on it.
 
+## Song propagation (new)
+
+- **`playlist_songs_service.get_playlist_song_ids()`**: returns a playlist's
+  song IDs as a `set`, built on the same `_get_or_fetch_songs()` helper (and
+  therefore the same 5-minute per-playlist cache) that `get_playlist_songs_page()`
+  uses — a destination playlist's contents are fetched at most once per
+  freshness window regardless of how many propagation pages are turned, and
+  there is exactly one per-playlist cache to invalidate.
+- **`get_playlist_songs_page()`** gained an optional `exclude_song_ids: set`
+  parameter, applied to the full song list *before* `sort_songs` and before
+  slicing into a page — so `total` reflects the post-exclusion count and
+  ordering never sees an excluded song. `None`/empty leaves the existing
+  code path byte-identical.
+- **Router** (`GET /{playlist_id}/songs?exclude_playlist_id=...`): both the
+  path playlist and the excluded playlist are resolved from one
+  `get_created_playlists()` call (`_find_owned_playlists`, replacing the
+  old single-ID `_find_owned_playlist`) rather than two, since `/me/playlists`
+  is the endpoint most likely to be rate limited (see §4 above). Verified:
+  omitting the parameter round-trips byte-identical to the pre-existing
+  behavior; naming a playlist the user doesn't own returns `404`; naming the
+  path playlist itself returns `400`.
+
 ## 5. Frontend Behavior
 
 Core frontend constants: `ui/src/utils/config.ts`
@@ -226,7 +251,7 @@ Notable endpoints include trailing slashes for some routes:
 2. `GET_SONGS_ENDPOINT = .../api/songs/`
 3. `GET_PLAYLISTS_ENDPOINT = .../api/playlists/`
 4. Others are non-trailing slash (`/total`, `/add-song`, `/start`, `/stop`, `/logout`).
-5. `getPlaylistSongsEndpoint(playlistId)` (new) — a function, not a constant, since the playlist ID is dynamic. GET and DELETE share the same URL; GET takes `offset`/`limit`/`sort` as query params, DELETE takes `{songId}` as its body.
+5. `getPlaylistSongsEndpoint(playlistId, excludePlaylistId?)` — a function, not a constant, since the playlist ID is dynamic. GET and DELETE share the same base URL; GET takes `offset`/`limit`/`sort` as query params (merged onto whatever the function already returned, not overwriting it), DELETE takes `{songId}` as its body. **(new)** The optional second argument appends `?exclude_playlist_id=...` — used only by song propagation; every existing call site omits it and is unaffected.
 6. `SCOPES` gained `user-top-read` — every pre-existing session's token lacks it until the user logs out and back in (see §9).
 
 ## Auth behavior
@@ -271,6 +296,15 @@ Notable endpoints include trailing slashes for some routes:
   - **Flush on unload**: a single effect registers a `pagehide` listener and returns a cleanup function; both call the same `flushAllPending()`, which fires a `keepalive: true` `fetch` for every still-pending timer and clears them. `pagehide` covers a hard close/reload; the effect's own cleanup (on unmount or when `playlistId` changes) covers SPA navigation away. This is the only way a pending removal is guaranteed to reach Spotify rather than being silently dropped.
   - **Emptied later page**: an effect watching the displayed (filtered) list's length steps back a page automatically if a removal empties a page other than the first, so the user is never left staring at nothing.
   - **Failure handling**: a failed removal removes the ID from `pendingRemovalIds` (the song reappears) and shows an error toast; a `403` gets its own "could not be modified" message rather than the generic one.
+  - **(new) Extracted for reuse by song propagation**, both with no behavior change (existing suites for this page pass with only structural, never behavioral, edits): the chooser body of `/clean` became `ui/src/components/ui/playlist-chooser.tsx` (`PlaylistChooser`), and the deferred-removal timer/pause/undo/flush machinery described above became `ui/src/hooks/use-deferred-row-action.ts` (`useDeferredRowAction`), which this page now calls with its own `perform`/`buildToastMessage`/`onError`.
+
+## Propagate pages (new)
+
+- `/propagate`: a `PlaylistChooser` (same component `/clean` uses) picks the **destination** playlist. Selecting one opens a `Dialog` containing the shared `PlaylistList` with `onSelectPlaylist`, filtered to every *other* owned playlist — the destination itself is never offered as its own source. Choosing a row navigates to `/propagate/{destinationId}/from/{sourceId}`; dismissing the dialog (Escape, overlay click) clears the chosen destination and navigates nowhere. When the user owns only the playlist they just chose, `PlaylistList`'s existing `emptyMessage` prop is reused to say so — no bespoke "only one playlist" branch was needed.
+- `/propagate/[destinationId]/from/[sourceId]`: fetches the source playlist's songs with `exclude_playlist_id={destinationId}`, and renders them with the same `SongCard`/sort-control/page-size-control/`SongCardSkeleton`/`SongListPagination` stack as `/clean/[playlistId]`, but passes `SongCard` an `onAdd` handler (renders a plus control in the trash control's slot) and `showAddToPlaylists={false}` (hides the "add to playlists" dialog and trigger entirely, since the destination is already fixed). Not wrapped in `PlaylistsProvider` — with `showAddToPlaylists={false}`, `SongCard` never touches `PlaylistsContext`, so there is nothing for the provider to feed.
+  - **Adding is deferred** through the same `useDeferredRowAction` hook `/clean/[playlistId]` uses: `POST /api/playlists/add-song` with `{songId, playlistIds: [destinationId]}` fires only once the 10s window elapses; Undo cancels it. Failure handling mirrors cleanup's: a `403` gets "the playlist could not be modified" naming the song, other failures get a generic retry message, and the row returns to the list either way.
+  - **Distinguishing "nothing left to propagate" from "this playlist is empty"**: both read as the exclusion-applied `total` being `0`. When that happens, the page makes one additional lightweight request for the same source playlist *without* `exclude_playlist_id` (`limit=1`) to read the playlist's true total; `0` there means the source is genuinely empty, anything else means every song is already in the destination. This is the one place propagation issues an extra request beyond what cleanup's page pattern needed.
+- `ui/src/components/ui/song.tsx` (`SongCard`) gained two props: `onAdd?: (songId) => void` (renders a `Plus`-icon button in the same slot `onRemove`'s trash button uses; `aria-label={"Add " + name}`) and `showAddToPlaylists?: boolean` (default `true`; `false` removes the "add to playlists" `Dialog`/`DialogTrigger` and the pin-error effect that depends on that dialog being open). Every existing call site is unaffected by the defaults.
 
 ## 6. Data Models and Type Contracts
 
@@ -314,19 +348,19 @@ Deployment config:
 ## 8. Test Coverage and Current Test Status
 
 ## Backend tests
-- Present: `api/tests/` with 17 files and 207 test functions (added `test_service_affinity.py`, `test_service_playlist_songs.py`; extended `test_service_token.py` (`get_granted_scopes`), `test_service_playlists.py` (`remove_song_from_playlist`), `test_service_songs.py` (`mark_index_stale`), `test_service_http_client.py` (`spotify_delete`), `test_router_playlists.py` (both new endpoints), `test_router_oauth_logout.py` (the new managed file) for the playlist-cleanup feature).
-- Scope includes routers, services, model schema construction, OAuth logout behavior, token refresh logic, and threading-timing paths tested with `threading.Event`/`Barrier` synchronization rather than real sleeps — including the new affinity build's single-flight coordination, which mirrors the uncategorized index's pattern.
-- Local execution: `cd api && python3 -m pytest` (via `venv/bin/python -m pytest`) — 207 passed, 99% overall statement coverage (`playlist_songs_service.py` 100%, `affinity_service.py` 99%, `playlists_service.py` 99%, `songs_service.py` 98%, `routers/playlists.py` 97%), above the project's 90% target. The 13 uncovered lines are pre-existing defensive edge cases (a file vanishing mid-read between `stat` and `open`; cleanup-of-cleanup failure paths; one pre-existing router branch) rather than anything new.
+- Present: `api/tests/` with 17 files and 245 test functions (**new for song propagation**: `test_service_playlist_songs.py` gained exclusion and `get_playlist_song_ids` coverage; `test_router_playlists.py` gained `exclude_playlist_id` coverage — no-param parity, exclusion applied, `400` self-exclusion, `404` unowned/unknown excluded playlist, `429`/`403`/`502` mapping on the exclusion path, single-`get_created_playlists()`-call verification, and `add-song`'s per-target cache invalidation. Prior additions for playlist-cleanup: `test_service_affinity.py`, `test_service_playlist_songs.py`; extensions to `test_service_token.py`, `test_service_playlists.py`, `test_service_songs.py`, `test_service_http_client.py`, `test_router_oauth_logout.py`).
+- Scope includes routers, services, model schema construction, OAuth logout behavior, token refresh logic, and threading-timing paths tested with `threading.Event`/`Barrier` synchronization rather than real sleeps.
+- Local execution: `cd api && python3 -m pytest` (this session used a `python3.12` venv — the repo's pinned `pydantic-core` fails to build on Python 3.14, which was the ambient interpreter) — 245 passed, 99% overall statement coverage (`playlist_songs_service.py` 100%, `routers/playlists.py` 98%, `affinity_service.py`/`playlists_service.py` 99%, `songs_service.py` 98%). The `_find_owned_playlist` (singular) helper was removed as dead code once the router moved onto `_find_owned_playlists` for both the path and excluded-playlist lookups.
 
 ## Frontend tests
-- Present: 28 Jest test files under `ui/src` (added `app/clean/page.test.tsx`, `app/clean/layout.test.tsx`, `app/clean/[playlistId]/page.test.tsx`, `app/clean/[playlistId]/layout.test.tsx`; extended `toast-provider.test.tsx` (action/progress), `playlist-list.test.tsx` (`onSelectPlaylist`), `song.test.tsx` (`onRemove`), `playlists-provider.test.tsx` (`refetch`), `page.test.tsx` (the new landing-page entry point)).
+- Present: 39 Jest test files under `ui/src` (**new for song propagation**: `hooks/use-deferred-row-action.test.ts`, `components/ui/playlist-chooser.test.tsx`, `app/propagate/page.test.tsx` + `layout.test.tsx`, `app/propagate/[destinationId]/from/[sourceId]/page.test.tsx` + `layout.test.tsx`; extended `song.test.tsx` (`onAdd`/`showAddToPlaylists`), `utils/config.test.ts` (`getPlaylistSongsEndpoint`'s new second argument), `app/page.test.tsx` (the third landing action). `app/clean/page.test.tsx` and `app/clean/[playlistId]/page.test.tsx` needed **zero edits** despite both pages being rewired onto the new shared `PlaylistChooser`/`useDeferredRowAction` — confirms the extraction preserved behavior exactly).
 - Local execution command: `npm test -- --runInBand`.
 - Result:
-1. 28 suites total.
-2. 28 passed.
+1. 39 suites total.
+2. 39 passed.
 3. 0 failed.
-4. 136 tests total: 136 passed, 0 failed.
-- Coverage (`npm test -- --coverage`): ~96% statements / ~88% branches / ~94% functions / ~97% lines, above the enforced 85% `jest.config.js` threshold. Weakest spots remain pre-existing (`app/organize/page.tsx` pagination-link edge cases, `playlist-list.tsx`'s FLIP-animation branch, `select.tsx`/`dialog.tsx` shadcn internals) — nothing newly added by this feature meaningfully lowered the floor.
+4. 313 tests total: 313 passed, 0 failed.
+- Coverage (`npm test -- --coverage`): ~96% statements / ~86% branches / ~96% functions / ~97% lines, above the enforced 85% `jest.config.js` threshold. New-code weak spots: `app/propagate/page.tsx`'s defensive `if (!destination) return` guard (unreachable via the UI, since the dialog only renders once a destination is set) and the `upstream_error` branch of the duplicated `describeAffinityUnavailable` helper — both pre-existing patterns from the cleanup page, not new gaps.
 
 Non-fatal test console warnings currently observed:
 - DOM nesting warning in `layout.test.tsx` (`<html>` inside RTL container) — expected, since that's the one place in the app the real `<html>` tag renders.
@@ -341,6 +375,8 @@ Non-fatal test console warnings currently observed:
 6. Process-level state (the in-memory index cache, cold-build coordination, background-refresh guard, **and now the affinity cache and the per-playlist song cache**) assumes a single backend worker — see `songs_service.py` note in §4. `render.yaml` and local dev both run one worker today, so this holds, but it's an assumption to keep in mind before scaling the backend horizontally.
 7. **(new)** `user-top-read` was added to the requested scope set after existing sessions already had tokens. Every session established before this change lacks the scope and must log out and back in once before least-listened sorting becomes available; the app degrades gracefully in the meantime (the option is shown but disabled, with an explanation) rather than breaking.
 8. **(new)** The listening-affinity signal is inherently coarse: Spotify's `/me/top/tracks` caps at 50 tracks per time range with no way to page further, so at most ~150 distinct tracks across all three ranges carry any signal at all. Any playlist larger than that will have most of its songs share the lowest tier (0), making `added_at` the real tiebreaker in practice — this is a property of the data Spotify exposes, not an implementation shortcut, and is called out in the UI copy and the spec.
+9. **(new)** `SORT_OPTIONS` and `describeAffinityUnavailable()` are now duplicated verbatim across `/clean/[playlistId]` and the propagation working page (the two song lists that offer sorting), rather than sharing a module — the same shape of duplication that `PlaylistChooser` and `useDeferredRowAction` were extracted to avoid for the chooser and the deferred-action machinery. A future third sortable song list would be the natural trigger to extract these two as well.
+10. **(new)** Distinguishing "source playlist is empty" from "every source song is already in the destination" on the propagation page costs one extra `GET` (limit=1, no exclusion) whenever the exclusion-applied `total` is 0 — a minor, infrequent request the backend contract doesn't otherwise need.
 
 **Closed by the uncategorized-songs load speedup (2026-08-23):**
 - ~~Cache invalidation is partial; uncategorized cache updates only on add-song and manual file lifecycle.~~ A stale index (>15 min) now triggers a background rebuild automatically, and `POST /api/songs/refresh` lets the user force one on demand — verified live against the real account (see §4).

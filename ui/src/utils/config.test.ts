@@ -23,6 +23,20 @@ describe("config", () => {
     expect(config.SCOPES).toContain("user-library-read");
   });
 
+  it("builds the plain playlist-songs URL without exclude_playlist_id when omitted", async () => {
+    const config = await import("./config");
+    expect(config.getPlaylistSongsEndpoint("p1")).toBe(
+      "http://localhost:8000/api/playlists/p1/songs"
+    );
+  });
+
+  it("appends exclude_playlist_id when given a playlist to exclude", async () => {
+    const config = await import("./config");
+    expect(config.getPlaylistSongsEndpoint("p1", "p2")).toBe(
+      "http://localhost:8000/api/playlists/p1/songs?exclude_playlist_id=p2"
+    );
+  });
+
   it("derives the redirect url from the live browser origin", async () => {
     Object.defineProperty(window, "location", {
       configurable: true,

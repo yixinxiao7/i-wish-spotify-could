@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import Image from 'next/image';
-import { Music, Trash2 } from 'lucide-react';
+import { Music, Plus, Trash2 } from 'lucide-react';
 
 import {
 	Card,
@@ -45,6 +45,13 @@ interface SongProps {
 	allPlaylists?: Playlist[]
 	/** Renders a trash control when present (e.g. playlist cleanup). */
 	onRemove?: (songId: string) => void
+	/** Renders a plus control when present (e.g. song propagation), in the
+	 * same slot as onRemove's trash control. */
+	onAdd?: (songId: string) => void
+	/** Hides the "add to playlists" dialog and its trigger — e.g. song
+	 * propagation, where the destination is already chosen and a second,
+	 * contradictory destination picker would be noise. Defaults to true. */
+	showAddToPlaylists?: boolean
 	/** Set for rows already within the viewport on first render — album art
 	 * is the hero, and this app's LCP element, so it should not wait behind
 	 * lazy-loading like rows below the fold. */
@@ -62,6 +69,8 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 	onSuccess,
 	allPlaylists,
 	onRemove,
+	onAdd,
+	showAddToPlaylists = true,
 	priority = false,
 	className = ""
 }) => {
@@ -73,12 +82,14 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 
 	// Surface pin failures on this song's toast, but only while its own
 	// dialog is open — otherwise every rendered SongCard would toast at once,
-	// since the pin error lives in shared provider state.
+	// since the pin error lives in shared provider state. Skipped entirely
+	// when the dialog itself is hidden (showAddToPlaylists=false): there is
+	// no dialog whose "open" state this could ever be gated on.
 	useEffect(() => {
-		if (dialogOpen && playlistsContext?.error) {
+		if (showAddToPlaylists && dialogOpen && playlistsContext?.error) {
 			showToast(playlistsContext.error, 'error');
 		}
-	}, [dialogOpen, playlistsContext?.error, showToast]);
+	}, [showAddToPlaylists, dialogOpen, playlistsContext?.error, showToast]);
 
 	const selectedPlaylistIds = useMemo(
 		() => new Set(selectedPlaylists.map((p) => p.id)),
@@ -236,39 +247,41 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 							</div>
 						</div>
 						<div className="flex items-center gap-2 sm:gap-3">
-							<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-								<DialogTrigger asChild>
-									<Button
-										size="sm"
-										variant="brand"
-										className="h-11 w-full whitespace-nowrap px-4 text-xs font-semibold sm:h-10 sm:w-auto sm:min-w-[150px] sm:max-w-[150px]">
-										add to playlists
-									</Button>
-								</DialogTrigger>
-								<DialogContent className="flex max-h-[85vh] flex-col overflow-hidden">
-									<DialogHeader className="flex-shrink-0">
-										<DialogTitle>Playlists</DialogTitle>
-										<DialogDescription>Select one or more playlists to add this song to.</DialogDescription>
-									</DialogHeader>
-									<div className="min-h-0 flex-1 overflow-y-auto pr-3">
-										<PlaylistList
-											playlists={allPlaylists}
-											selectedIds={selectedPlaylistIds}
-											onToggleSelect={updateSelectedPlaylists}
-										/>
-									</div>
-									<DialogFooter className="flex w-full flex-shrink-0 justify-center">
+							{showAddToPlaylists && (
+								<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+									<DialogTrigger asChild>
 										<Button
-											onClick={addSongToPlaylists}
-											disabled={addingToPlaylist}
+											size="sm"
 											variant="brand"
-											className="h-11 w-full text-base font-semibold sm:h-10 sm:w-auto sm:min-w-[170px] sm:max-w-[170px]"
-										>
-											{addingToPlaylist ? "adding..." : "add"}
+											className="h-11 w-full whitespace-nowrap px-4 text-xs font-semibold sm:h-10 sm:w-auto sm:min-w-[150px] sm:max-w-[150px]">
+											add to playlists
 										</Button>
-									</DialogFooter>
-								</DialogContent>
-							</Dialog>
+									</DialogTrigger>
+									<DialogContent className="flex max-h-[85vh] flex-col overflow-hidden">
+										<DialogHeader className="flex-shrink-0">
+											<DialogTitle>Playlists</DialogTitle>
+											<DialogDescription>Select one or more playlists to add this song to.</DialogDescription>
+										</DialogHeader>
+										<div className="min-h-0 flex-1 overflow-y-auto pr-3">
+											<PlaylistList
+												playlists={allPlaylists}
+												selectedIds={selectedPlaylistIds}
+												onToggleSelect={updateSelectedPlaylists}
+											/>
+										</div>
+										<DialogFooter className="flex w-full flex-shrink-0 justify-center">
+											<Button
+												onClick={addSongToPlaylists}
+												disabled={addingToPlaylist}
+												variant="brand"
+												className="h-11 w-full text-base font-semibold sm:h-10 sm:w-auto sm:min-w-[170px] sm:max-w-[170px]"
+											>
+												{addingToPlaylist ? "adding..." : "add"}
+											</Button>
+										</DialogFooter>
+									</DialogContent>
+								</Dialog>
+							)}
 							{onRemove && (
 								<Button
 									size="icon"
@@ -278,6 +291,17 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 									className="h-11 w-11 flex-shrink-0 rounded-full p-0 sm:h-10 sm:w-10"
 								>
 									<Trash2 className="h-4 w-4" aria-hidden="true" />
+								</Button>
+							)}
+							{onAdd && (
+								<Button
+									size="icon"
+									variant="brand"
+									onClick={() => onAdd(id)}
+									aria-label={`Add ${name}`}
+									className="h-11 w-11 flex-shrink-0 rounded-full p-0 sm:h-10 sm:w-10"
+								>
+									<Plus className="h-4 w-4" aria-hidden="true" />
 								</Button>
 							)}
 						</div>

@@ -347,4 +347,69 @@ describe("SongCard", () => {
     fireEvent.click(trashButton);
     expect(onRemove).toHaveBeenCalledWith("song-1");
   });
+
+  it("renders no plus control when onAdd is absent", () => {
+    renderSong(
+      <SongCard id="song-1" name="Song Name" artists="Artist" album="Album" onRefresh={jest.fn()} />
+    );
+    expect(screen.queryByRole("button", { name: "Add Song Name" })).not.toBeInTheDocument();
+  });
+
+  it("renders an accessibly-named, keyboard-operable plus control and calls onAdd with the song id", () => {
+    const onAdd = jest.fn();
+    renderSong(
+      <SongCard
+        id="song-1"
+        name="Song Name"
+        artists="Artist"
+        album="Album"
+        onRefresh={jest.fn()}
+        onAdd={onAdd}
+      />
+    );
+
+    const addButton = screen.getByRole("button", { name: "Add Song Name" });
+    expect(addButton.tagName).toBe("BUTTON"); // native element: keyboard operability is inherent
+    fireEvent.click(addButton);
+    expect(onAdd).toHaveBeenCalledWith("song-1");
+  });
+
+  it("hides the add-to-playlists trigger and dialog when showAddToPlaylists is false", () => {
+    renderSong(
+      <SongCard
+        id="song-1"
+        name="Song Name"
+        artists="Artist"
+        album="Album"
+        onRefresh={jest.fn()}
+        showAddToPlaylists={false}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "add to playlists" })).not.toBeInTheDocument();
+  });
+
+  it("defaults showAddToPlaylists to true, leaving existing rendering unchanged", () => {
+    renderSong(
+      <SongCard id="song-1" name="Song Name" artists="Artist" album="Album" onRefresh={jest.fn()} />
+    );
+    expect(screen.getByRole("button", { name: "add to playlists" })).toBeInTheDocument();
+  });
+
+  it("renders onAdd and onRemove together without layout breakage", () => {
+    const onAdd = jest.fn();
+    const onRemove = jest.fn();
+    renderSong(
+      <SongCard
+        id="song-1"
+        name="Song Name"
+        artists="Artist"
+        album="Album"
+        onRefresh={jest.fn()}
+        onAdd={onAdd}
+        onRemove={onRemove}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Add Song Name" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Song Name" })).toBeInTheDocument();
+  });
 });

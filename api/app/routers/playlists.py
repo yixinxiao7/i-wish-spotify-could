@@ -7,7 +7,12 @@ from app.services.playlists_service import (
 from app.services.token_service import get_valid_token
 from app.services.pins_service import read_pins, set_pin, apply_pins
 from app.services.songs_service import remove_song_from_index, mark_index_stale
-from app.services.playlist_songs_service import get_playlist_songs_page, invalidate_playlist_cache, SORT_KEYS
+from app.services.playlist_songs_service import (
+    get_playlist_songs_page,
+    get_playlist_song_ids,
+    invalidate_playlist_cache,
+    SORT_KEYS,
+)
 from app.services.affinity_service import get_affinity
 from app.services.http_client import SpotifyRateLimitedError
 from app.models.schemas import SongPostData, PinPostData, RemoveSongData
@@ -103,6 +108,12 @@ def post_song_to_playlists(song_post_data: SongPostData):
     try:
         add_song_to_playlists(token, song_id, playlist_ids)
         remove_song_from_index(song_id)
+        # A target playlist's cached song list would otherwise still be
+        # missing this song until the cache's freshness window elapses,
+        # letting song-propagation offer it as a candidate again and add
+        # it a second time (Spotify allows duplicate entries).
+        for playlist_id in playlist_ids:
+            invalidate_playlist_cache(playlist_id)
 
     except SpotifyRateLimitedError as e:
         logger.warning("Rate limited adding song %s to playlists: %s", song_id, str(e))
@@ -117,16 +128,22 @@ def post_song_to_playlists(song_post_data: SongPostData):
     return {"message": "Song added to playlists successfully!"}
 
 
-def _find_owned_playlist(token: str, playlist_id: str):
+def _find_owned_playlists(token: str, playlist_ids: set):
     '''
-    Look up an owned playlist by ID, so the cleanup endpoints can tell
-    "unavailable" (unknown or not owned) apart from "empty" without ever
-    handing the client a playlist they don't own.
+    Resolve several owned-playlist IDs from a single get_created_playlists()
+    call, so validating a path playlist and an excluded playlist (song
+    propagation) costs one /me/playlists request rather than one per ID —
+    the endpoint most likely to be rate limited (CONTEXT.md Sec.4).
+    Args:
+        token (str): Spotify access token
+        playlist_ids (set[str]): IDs to resolve
+    Returns:
+        dict[str, dict]: playlist_id -> playlist, for IDs that are owned;
+            IDs not found or not owned are simply absent
     '''
-    for playlist in get_created_playlists(token):
-        if playlist["id"] == playlist_id:
-            return playlist
-    return None
+    owned = get_created_playlists(token)
+    found = {p["id"]: p for p in owned if p["id"] in playlist_ids}
+    return found
 
 
 @router.get("/{playlist_id}/songs")
@@ -135,14 +152,22 @@ def get_playlist_songs(
     offset: int = Query(0, ge=0, description="Offset"),
     limit: int = Query(10, ge=1, le=100, description="Limit"),
     sort: str = Query("playlist", description="One of: " + ", ".join(SORT_KEYS)),
+    exclude_playlist_id: str | None = Query(
+        None, description="If set, omit songs already in this owned playlist (used by song propagation)"
+    ),
 ):
     '''
-    Get one page of a playlist's songs, ordered as requested.
+    Get one page of a playlist's songs, ordered as requested. When
+    exclude_playlist_id is given, songs already present in that (owned)
+    playlist are omitted before ordering and pagination, and the reported
+    total reflects the exclusion.
     Args:
         playlist_id (str): Spotify playlist ID
         offset (int): Offset into the ordered list (>= 0)
         limit (int): Page size (1-100)
         sort (str): "playlist" | "added_asc" | "added_desc" | "affinity_asc"
+        exclude_playlist_id (str, optional): owned playlist ID whose songs
+            should be omitted from the result
     Returns:
         dict:
         {
@@ -157,9 +182,13 @@ def get_playlist_songs(
     if sort not in SORT_KEYS:
         raise HTTPException(status_code=400, detail=f"Unknown sort: {sort!r}")
 
+    if exclude_playlist_id is not None and exclude_playlist_id == playlist_id:
+        raise HTTPException(status_code=400, detail="exclude_playlist_id cannot be the playlist being listed")
+
     token = get_valid_token()
+    ids_to_resolve = {playlist_id} | ({exclude_playlist_id} if exclude_playlist_id else set())
     try:
-        playlist = _find_owned_playlist(token, playlist_id)
+        resolved = _find_owned_playlists(token, ids_to_resolve)
     except SpotifyRateLimitedError as e:
         logger.warning("Rate limited looking up playlist %s: %s", playlist_id, str(e))
         raise HTTPException(status_code=429, detail=RATE_LIMIT_DETAIL)
@@ -172,14 +201,26 @@ def get_playlist_songs(
         logger.error("Failed to look up playlist %s: %s", playlist_id, str(e))
         raise HTTPException(status_code=502, detail="Failed to load playlist songs")
 
+    playlist = resolved.get(playlist_id)
     if playlist is None:
+        raise HTTPException(status_code=404, detail="Playlist not found or not owned by the current user")
+    if exclude_playlist_id is not None and exclude_playlist_id not in resolved:
         raise HTTPException(status_code=404, detail="Playlist not found or not owned by the current user")
 
     affinity = get_affinity(token)
 
     try:
+        exclude_song_ids = None
+        if exclude_playlist_id is not None:
+            exclude_song_ids = get_playlist_song_ids(token, exclude_playlist_id)
         songs, total = get_playlist_songs_page(
-            token, playlist_id, offset, limit, sort, affinity_tiers=affinity["tiers"]
+            token,
+            playlist_id,
+            offset,
+            limit,
+            sort,
+            affinity_tiers=affinity["tiers"],
+            exclude_song_ids=exclude_song_ids,
         )
     except SpotifyRateLimitedError as e:
         logger.warning("Rate limited reading playlist %s: %s", playlist_id, str(e))
