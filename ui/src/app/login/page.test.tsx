@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import Login from "./page";
+import { LOGIN_HEADLINE_VERBS } from "@/components/ui/typing-headline";
 
 describe("Login page", () => {
   const originalLocation = window.location;
@@ -37,6 +38,17 @@ describe("Login page", () => {
       configurable: true,
       value: originalLocation,
     });
+  });
+
+  it("names the heading with the full sentence around the first cycling verb", () => {
+    render(<Login />);
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: `better ${LOGIN_HEADLINE_VERBS[0]} your songs`,
+      })
+    ).toBeInTheDocument();
   });
 
   it("stores oauth_state and redirects to spotify authorize url", () => {
