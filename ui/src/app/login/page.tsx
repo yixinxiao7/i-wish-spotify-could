@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { SCOPES, AUTHORIZE_ENDPOINT, getRedirectUrl } from '@/utils/config';
 import { Button } from '@/components/ui/button';
+import { LOGIN_HEADLINE_VERBS, TypingHeadline } from '@/components/ui/typing-headline';
 
 const client_id = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
 const scopes_url_params = SCOPES.join('%20');
@@ -46,7 +47,18 @@ const Login: React.FC = () => {
     >
       <article className="surface-panel relative w-full max-w-md rounded-3xl p-6 text-brand-body sm:p-8">
         <p className="mb-2 text-xs uppercase tracking-[0.28em] text-brand-label">I Wish Spotify Could</p>
-        <h1 className="text-3xl font-bold leading-tight text-brand-heading sm:text-4xl">better organize your songs</h1>
+        {/*
+          min-h reserves the tallest state so the Log in button never moves as
+          the verb types: 3 lines at the narrow breakpoint (where "propagate"
+          pushes "your songs" onto a third line) and 2 at sm and up. In rem, not
+          px, so the reservation scales with the text if the root size changes.
+        */}
+        <TypingHeadline
+          phrases={LOGIN_HEADLINE_VERBS}
+          prefix="better "
+          suffix=" your songs"
+          className="min-h-[7.0625rem] text-3xl font-bold leading-tight text-brand-heading sm:min-h-[5rem] sm:text-4xl"
+        />
         <p className="mt-3 text-sm leading-relaxed text-brand-muted sm:mt-4">
           but there&apos;s little things missing, so here&apos;s a couple of tools to help you out!
         </p>

@@ -188,6 +188,28 @@ main {
     border: 1px solid var(--brand-toast-error-border);
     color: hsl(var(--brand-toast-error-text));
   }
+
+  /* Insertion-point caret for TypingHeadline (landing + login). */
+  .typing-caret {
+    display: inline-block;
+    width: 0.09em;
+    margin-left: 0.05em;
+    height: 1em;
+    vertical-align: -0.1em;
+    background: currentColor;
+    animation: caret-blink 1s step-end infinite;
+  }
+
+  @keyframes caret-blink {
+    0%,
+    50% {
+      opacity: 1;
+    }
+    50.01%,
+    100% {
+      opacity: 0;
+    }
+  }
 }
 
 /* Reduce motion for users who prefer it */

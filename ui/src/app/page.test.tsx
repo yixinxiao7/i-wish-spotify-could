@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import Landing from "./page";
+import { LANDING_HEADLINE_PHRASES } from "@/components/ui/typing-headline";
 
 const pushMock = jest.fn();
 
@@ -29,6 +30,13 @@ describe("Landing page", () => {
     render(<Landing />);
     fireEvent.click(screen.getByRole("button", { name: "propagate songs" }));
     expect(pushMock).toHaveBeenCalledWith("/propagate");
+  });
+
+  it("exposes the first headline phrase as the accessible heading name", () => {
+    render(<Landing />);
+    expect(
+      screen.getByRole("heading", { level: 1, name: LANDING_HEADLINE_PHRASES[0] })
+    ).toBeInTheDocument();
   });
 
   it("all three tool buttons carry a description distinguishing them", () => {
