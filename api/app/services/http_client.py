@@ -160,9 +160,25 @@ def spotify_delete(url: str, **kwargs) -> requests.Response:
     return _call(_delete, url, **kwargs)
 
 
+@retry(
+    retry=retry_if_result(_is_rate_limited),
+    stop=stop_after_attempt(4),
+    wait=_wait_for_rate_limit,
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
+)
+def _put(url: str, **kwargs) -> requests.Response:
+    return _session.put(url, **kwargs)
+
+
+def spotify_put(url: str, **kwargs) -> requests.Response:
+    return _call(_put, url, **kwargs)
+
+
 __all__ = [
     "spotify_get",
     "spotify_post",
+    "spotify_put",
     "spotify_delete",
     "SpotifyRateLimitedError",
     "MAX_RETRY_AFTER_SECONDS",

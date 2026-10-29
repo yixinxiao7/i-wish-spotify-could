@@ -223,3 +223,31 @@ def test_spotify_delete_reuses_shared_session(monkeypatch):
     http_client.spotify_delete("https://example.com")
     http_client.spotify_delete("https://example.com")
     assert len(calls) == 2
+
+
+def test_spotify_put_passes_through_a_success_response(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        http_client._session, "put", lambda *a, **k: calls.append((a, k)) or DummyResponse(204)
+    )
+    result = http_client.spotify_put("https://example.com", params={"device_id": "d1"})
+    assert result.status_code == 204
+    assert calls == [(("https://example.com",), {"params": {"device_id": "d1"}})]
+
+
+def test_spotify_put_honors_retry_after(monkeypatch):
+    responses = [DummyResponse(429, {"Retry-After": "1"}), DummyResponse(204)]
+    monkeypatch.setattr(http_client._session, "put", lambda *_a, **_k: responses.pop(0))
+    assert http_client.spotify_put("https://example.com").status_code == 204
+
+
+def test_spotify_put_raises_when_retry_after_is_beyond_the_cap(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        http_client._session,
+        "put",
+        lambda *_a, **_k: calls.append(1) or DummyResponse(429, {"Retry-After": "6493"}),
+    )
+    with pytest.raises(http_client.SpotifyRateLimitedError):
+        http_client.spotify_put("https://example.com")
+    assert len(calls) == 1

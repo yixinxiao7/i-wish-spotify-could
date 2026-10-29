@@ -175,6 +175,64 @@ describe("SongCard", () => {
     expect(await screen.findByText("Failed to start playback.")).toBeInTheDocument();
   });
 
+  it("toasts the backend detail when starting playback fails and leaves the icon on Play", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      json: async () => ({ detail: "Open Spotify on a device, then try again." }),
+    });
+    renderSong(
+      <SongCard id="song-1" name="Song Name" artists="Artist" album="Album" onRefresh={jest.fn()} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(
+      await screen.findByText("Open Spotify on a device, then try again.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+  });
+
+  it("falls back to generic copy when the failure body is not JSON or has no string detail", async () => {
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => {
+          throw new Error("not json");
+        },
+      })
+      .mockResolvedValueOnce({ ok: false, json: async () => ({ detail: [{ msg: "x" }] }) });
+    renderSong(
+      <SongCard id="song-1" name="Song Name" artists="Artist" album="Album" onRefresh={jest.fn()} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(await screen.findByText("Failed to start playback.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Failed to start playback.")).toBeInTheDocument();
+  });
+
+  it("toasts the backend detail when stopping playback fails and leaves the icon on Pause", async () => {
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ detail: "Your Spotify session expired. Log in again." }),
+      });
+    renderSong(
+      <SongCard id="song-1" name="Song Name" artists="Artist" album="Album" onRefresh={jest.fn()} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(
+      await screen.findByText("Your Spotify session expired. Log in again.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+  });
+
   it("shows toast when add-song request returns non-ok", async () => {
     (global.fetch as jest.Mock).mockResolvedValue({ ok: false });
     renderSong(

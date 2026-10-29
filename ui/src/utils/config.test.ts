@@ -21,6 +21,7 @@ describe("config", () => {
     expect(config.GET_SONGS_ENDPOINT).toBe("http://localhost:8000/api/songs/");
     expect(config.PUT_STOP_PLAYBACK_ENDPOINT).toBe("http://localhost:8000/api/playback/stop");
     expect(config.SCOPES).toContain("user-library-read");
+    expect(config.SCOPES).toContain("user-read-playback-state");
   });
 
   it("builds the plain playlist-songs URL without exclude_playlist_id when omitted", async () => {
