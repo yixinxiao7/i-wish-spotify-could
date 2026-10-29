@@ -147,6 +147,17 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 	const [isPlaying, setIsPlaying] = useState(false);
 	const [playbackLoading, setPlaybackLoading] = useState(false);
 
+	// The backend explains why playback failed (no device, no Premium, ...) in
+	// `detail`; use it when present, otherwise the generic copy.
+	const playbackFailureMessage = async (response: Response, fallback: string) => {
+		try {
+			const body = await response.json();
+			return typeof body?.detail === 'string' ? body.detail : fallback;
+		} catch {
+			return fallback;
+		}
+	};
+
 	const handlePlaybackToggle = async () => {
 		setPlaybackLoading(true);
 		try {
@@ -161,7 +172,7 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 				if (response.ok) {
 					setIsPlaying(true);
 				} else {
-					showToast('Failed to start playback.', 'error');
+					showToast(await playbackFailureMessage(response, 'Failed to start playback.'), 'error');
 				}
 			} else {
 				const response = await fetch(PUT_STOP_PLAYBACK_ENDPOINT, {
@@ -174,7 +185,7 @@ export const SongCard: React.FC<SongProps> = React.memo(({
 				if (response.ok) {
 					setIsPlaying(false);
 				} else {
-					showToast('Failed to stop playback.', 'error');
+					showToast(await playbackFailureMessage(response, 'Failed to stop playback.'), 'error');
 				}
 			}
 		} catch {
