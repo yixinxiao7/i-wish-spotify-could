@@ -27,6 +27,8 @@ def spotify(monkeypatch):
     state.gets, state.puts = [], []
     state.devices = [device("d1", active=True)]
     state.devices_status = 200
+    state.track_status = 200
+    state.track = {"uri": "spotify:track:song-1", "album": {"uri": "spotify:album:alb-1"}}
     state.put_response = DummyResponse(204)
     monkeypatch.setattr(
         playback_services,
@@ -36,6 +38,8 @@ def spotify(monkeypatch):
 
     def fake_get(url, **kwargs):
         state.gets.append((url, kwargs))
+        if "/tracks/" in url:
+            return DummyResponse(state.track_status, state.track)
         return DummyResponse(state.devices_status, {"devices": state.devices})
 
     def fake_put(url, **kwargs):
@@ -53,7 +57,10 @@ def test_play_targets_the_active_device(spotify):
     url, kwargs = spotify.puts[0]
     assert url.endswith("/me/player/play")
     assert kwargs["params"] == {"device_id": "live"}
-    assert kwargs["json"] == {"uris": ["spotify:track:song-1"]}
+    assert kwargs["json"] == {
+        "context_uri": "spotify:album:alb-1",
+        "offset": {"uri": "spotify:track:song-1"},
+    }
     assert kwargs["headers"] == {"Authorization": "Bearer token"}
 
 
@@ -95,8 +102,43 @@ def test_device_lookup_failure_raises_playback_error(spotify):
 def test_missing_scope_sends_untargeted_play_without_device_lookup(spotify, monkeypatch):
     monkeypatch.setattr(playback_services, "get_granted_scopes", lambda: set())
     playback_services.toggle_playback("token", "play", "song-1")
-    assert spotify.gets == []
+    assert [url for url, _ in spotify.gets if url.endswith("/devices")] == []
     assert "params" not in spotify.puts[0][1]
+    assert spotify.puts[0][1]["json"]["context_uri"] == "spotify:album:alb-1"
+
+
+def test_play_looks_up_the_track_in_the_users_market(spotify):
+    playback_services.toggle_playback("token", "play", "song-1")
+    url, kwargs = spotify.gets[0]
+    assert url.endswith("/tracks/song-1")
+    assert kwargs["params"] == {"market": "from_token"}
+    assert kwargs["headers"] == {"Authorization": "Bearer token"}
+
+
+def test_relinked_track_uri_is_used_as_the_offset(spotify):
+    spotify.track = {"uri": "spotify:track:relinked", "album": {"uri": "spotify:album:alb-1"}}
+    playback_services.toggle_playback("token", "play", "song-1")
+    assert spotify.puts[0][1]["json"]["offset"] == {"uri": "spotify:track:relinked"}
+
+
+def test_track_without_uri_offsets_by_the_requested_id(spotify):
+    spotify.track = {"album": {"uri": "spotify:album:alb-1"}}
+    playback_services.toggle_playback("token", "play", "song-1")
+    assert spotify.puts[0][1]["json"]["offset"] == {"uri": "spotify:track:song-1"}
+
+
+@pytest.mark.parametrize(
+    "status,track",
+    [
+        (404, {}),
+        (200, {"uri": "spotify:track:song-1"}),
+        (200, {"uri": "spotify:track:song-1", "album": None}),
+        (200, {"uri": "spotify:track:song-1", "album": {}}),
+    ],
+)
+def test_failed_track_lookup_falls_back_to_bare_track(spotify, status, track):
+    spotify.track_status, spotify.track = status, track
+    playback_services.toggle_playback("token", "play", "song-1")
     assert spotify.puts[0][1]["json"] == {"uris": ["spotify:track:song-1"]}
 
 
