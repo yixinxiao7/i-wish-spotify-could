@@ -114,7 +114,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
         {mounted && pathname !== "/login" && (
           <nav
             aria-label="Main navigation"
-            className="relative z-10 bg-transparent px-4 py-4"
+            className="app-bg relative z-10 px-4 py-4"
           >
             <ul className="m-0 flex list-none items-center gap-4 p-0">
               <li>
@@ -145,7 +145,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
           {children}
         </main>
         <footer
-          className="relative z-10 bg-brand-footer py-4 text-center"
+          className="app-bg relative z-10 py-4 text-center"
         >
           © 2025 i-wish-spotify-could
         </footer>
