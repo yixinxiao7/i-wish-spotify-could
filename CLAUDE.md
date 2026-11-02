@@ -82,7 +82,7 @@ npm run dev
 
 ### Run tests
 ```bash
-# Frontend (40 suites, 334 tests)
+# Frontend (40 suites, 342 tests)
 cd ui && npm test -- --runInBand
 
 # Backend (284 tests; requires pytest in env)

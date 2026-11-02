@@ -14,6 +14,11 @@ const ERROR_MESSAGES: Record<AuthErrorKind, string> = {
   exchange_failed: 'Login could not be completed.',
 };
 
+// How long the token exchange can run before the wait is explained. Short
+// enough to catch a backend cold start (Render's free plan can take up to a
+// minute to wake), long enough that an ordinary login never shows the text.
+const SLOW_NOTICE_MS = 3000;
+
 const isSessionValid = () => {
   const expiry = sessionStorage.getItem('token_expiry');
   if (!expiry) return false;
@@ -31,6 +36,7 @@ const CallBackClient = ({ code, state, error }: CallbackClientProps) => {
   const router = useRouter();
   const hasHandledCallback = useRef(false);
   const [authError, setAuthError] = useState<AuthErrorKind | null>(null);
+  const [showSlowNotice, setShowSlowNotice] = useState(false);
 
   const retry = () => router.push('/login');
 
@@ -94,6 +100,11 @@ const CallBackClient = ({ code, state, error }: CallbackClientProps) => {
     // was mounted to handle, not values that should re-trigger it.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSlowNotice(true), SLOW_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
   if (authError) {
     return (
       <section className="auth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-12">
@@ -121,24 +132,38 @@ const CallBackClient = ({ code, state, error }: CallbackClientProps) => {
       {/* The spinner sits inside the same flat surface-panel treatment as
           the rest of this page, so its icon color is verified against one
           known surface rather than the page background directly. */}
-      <div
-        role="status"
-        className="surface-panel flex h-20 w-20 items-center justify-center rounded-full"
-      >
-        <svg
-          className="h-9 w-9 animate-spin text-brand-muted motion-reduce:hidden"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          ></path>
-        </svg>
+      <div role="status" className="relative">
+        <div className="surface-panel flex h-20 w-20 items-center justify-center rounded-full">
+          <svg
+            className="h-9 w-9 animate-spin text-brand-muted motion-reduce:hidden"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+        </div>
         <span className="sr-only">Loading…</span>
+        {/* Out of flow so the text appearing never moves the spinner. The
+            fade sits on an inner element because its keyframes animate
+            transform, which would fight this wrapper's centering translate. */}
+        <div className="absolute left-1/2 top-full mt-4 w-max max-w-[calc(100vw-3rem)] -translate-x-1/2 text-center text-sm text-brand-muted">
+          {showSlowNotice ? (
+            <div className="duration-500 animate-in fade-in">
+              <p>waking up the server…</p>
+              <p>this can take up to a minute</p>
+            </div>
+          ) : (
+            // The spinner is hidden under reduced motion, which would leave
+            // an empty circle until the slow notice appears.
+            <p className="hidden motion-reduce:block">logging you in…</p>
+          )}
+        </div>
       </div>
     </section>
   );
